@@ -69,7 +69,6 @@ export function getKeyStatus(): Record<string, boolean> {
   return {
     TAVILY_API_KEY: !!process.env.TAVILY_API_KEY,
     BRAVE_API_KEY: !!process.env.BRAVE_API_KEY,
-    KIMI_API_KEY: !!process.env.KIMI_API_KEY,
     OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
     XAI_API_KEY: !!process.env.XAI_API_KEY,
     YOUTUBE_API_KEY: !!(process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY),
@@ -78,11 +77,11 @@ export function getKeyStatus(): Record<string, boolean> {
   }
 }
 
-/** Check if at least one search key and one LLM key are available */
+/** Check if at least one search key and the OpenRouter research-model key are available */
 export function hasMinimalKeys(): boolean {
   const keys = getKeyStatus()
   const hasSearch = keys.TAVILY_API_KEY || keys.BRAVE_API_KEY
-  const hasLLM = keys.KIMI_API_KEY || keys.OPENROUTER_API_KEY
+  const hasLLM = keys.OPENROUTER_API_KEY
   return hasSearch && hasLLM
 }
 

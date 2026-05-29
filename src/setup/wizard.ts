@@ -67,23 +67,12 @@ export async function setupWizard(): Promise<void> {
   }
 
   console.log("")
-  console.log("  [LLM PROVIDER] (required — choose one)")
-  console.log("  1) Kimi K2.5 — Recommended, affordable, supports Chinese")
-  console.log("  2) OpenRouter — Access to Claude, GPT, etc.")
+  console.log("  [RESEARCH MODEL] (required)")
+  console.log("  Kimi K2.5 through OpenRouter: moonshotai/kimi-k2.5")
   console.log("")
 
-  const llmChoice = await prompt.ask("  Choose (1 or 2, default: 1): ")
-
-  if (llmChoice === "2") {
-    const orKey = await prompt.ask("  OpenRouter API Key (https://openrouter.ai): ")
-    if (orKey) envVars.OPENROUTER_API_KEY = orKey
-  } else {
-    const kimiKey = await prompt.ask("  Kimi API Key (https://platform.moonshot.cn): ")
-    if (kimiKey) {
-      envVars.KIMI_API_KEY = kimiKey
-      envVars.KIMI_BASE_URL = "https://api.moonshot.ai/v1"
-    }
-  }
+  const orKey = await prompt.ask("  OpenRouter API Key (https://openrouter.ai): ")
+  if (orKey) envVars.OPENROUTER_API_KEY = orKey
 
   // Optional keys
   console.log("")
@@ -148,18 +137,14 @@ export async function setupWizard(): Promise<void> {
   }
 
   // Test LLM
-  const llmKey = envVars.KIMI_API_KEY || envVars.OPENROUTER_API_KEY
+  const llmKey = envVars.OPENROUTER_API_KEY
   if (llmKey) {
     try {
-      const baseUrl = envVars.KIMI_API_KEY
-        ? "https://api.moonshot.ai/v1"
-        : "https://openrouter.ai/api/v1"
-      const resp = await fetch(`${baseUrl}/models`, {
+      const resp = await fetch("https://openrouter.ai/api/v1/models", {
         headers: { Authorization: `Bearer ${llmKey}` },
         signal: AbortSignal.timeout(10000),
       })
-      const provider = envVars.KIMI_API_KEY ? "Kimi" : "OpenRouter"
-      console.log(`  ${provider} API: ${resp.ok ? "✅ Connected" : `❌ HTTP ${resp.status}`}`)
+      console.log(`  OpenRouter API: ${resp.ok ? "✅ Connected" : `❌ HTTP ${resp.status}`}`)
     } catch (e: any) {
       console.log(`  LLM API test failed: ${e.message}`)
     }

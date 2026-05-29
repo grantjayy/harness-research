@@ -48,14 +48,14 @@ An MCP (Model Context Protocol) server that performs real-time deep research acr
 > }
 > ```
 >
-> **That's it.** After registration, the agent gets 3 tools: `harness_research` (full report), `harness_search` (quick search), `harness_status` (progress check).
+> **Grant local fork note:** This fork is run from source behind lazy-mcp, not published through `npx`.
 >
-> **Do NOT** clone this repo, build from source, or run `node`/`python` directly. `npx` handles everything.
+> Top-level surface: one tool, `deep_research`.
 >
-> **Async workflow — no timeout issues:**
-> `harness_research` returns a `task_id` immediately (< 1 second). The research runs in the background (~10 minutes). You **must** poll `harness_status(task_id)` every 30–60 seconds until status is `"completed"` or `"failed"`. This design means the default 60-second MCP timeout will NOT be a problem.
+> **Synchronous workflow:**
+> `deep_research` waits for the full research run to finish and returns output artifact paths, source stats, and summary. Set the lazy-mcp timeout to **1200000 ms = 1200 seconds = 20 minutes** for full deep research runs.
 >
-> If your MCP client has a configurable timeout, setting it to **1200 seconds (20 minutes)** is still recommended as a safety margin:
+> Internal research model: Kimi K2.5 through OpenRouter (`moonshotai/kimi-k2.5`).
 > ```json
 > {
 >   "mcpServers": {
@@ -189,7 +189,7 @@ Just tell your Agent:
 
 > "Do a deep research on the global AI chip market landscape in 2025"
 
-The Agent will automatically call `harness_research` and return the full report in ~10 minutes.
+The Agent will call `deep_research` and return the full report when the synchronous MCP call completes.
 
 ---
 
@@ -197,9 +197,7 @@ The Agent will automatically call `harness_research` and return the full report 
 
 | Tool | Description | Duration |
 |------|-------------|----------|
-| `harness_research` | Full deep research with professional report output | ~10 min |
-| `harness_search` | Quick multi-source search, returns structured results | Seconds |
-| `harness_status` | Check research task progress | Instant |
+| `deep_research` | Full synchronous deep research with professional report output | Up to 20 min |
 
 ---
 
@@ -213,12 +211,11 @@ Harness Research does **not** rely on any LLM's historical knowledge. **All info
 |-----|---------|-----------|--------|------|
 | **TAVILY_API_KEY** | Advanced web search (deep scraping support) | Required (pick one) | [tavily.com](https://tavily.com) | Free 1000 calls/mo |
 | **BRAVE_API_KEY** | Privacy-focused web search | Required (pick one) | [brave.com/search/api](https://brave.com/search/api/) | Free 2000 calls/mo |
-| **KIMI_API_KEY** | LLM reasoning (planning, evaluation, writing) | Required (pick one) | [platform.moonshot.cn](https://platform.moonshot.cn) | Very low cost |
-| **OPENROUTER_API_KEY** | LLM reasoning (alternative to Kimi) | Required (pick one) | [openrouter.ai](https://openrouter.ai) | Per-model pricing |
+| **OPENROUTER_API_KEY** | LLM reasoning with Kimi K2.5 via OpenRouter (`moonshotai/kimi-k2.5`) | Required | [openrouter.ai](https://openrouter.ai) | Per-model pricing |
 | TUSHARE_TOKEN | Chinese A-share financial data | Optional | [tushare.pro](https://tushare.pro) | Free basic tier |
 | NCBI_API_KEY | PubMed academic paper search | Optional | [ncbi.nlm.nih.gov](https://ncbiinsights.ncbi.nlm.nih.gov/2017/11/02/new-api-keys-for-the-e-utilities/) | Free |
 
-**Minimum: 1 search key + 1 LLM key = 2 keys to get started.**
+**Minimum: 1 search key + OPENROUTER_API_KEY = 2 keys to get started.**
 
 ### Why Kimi K2.5?
 
@@ -287,10 +284,8 @@ npx harness-research-mcp doctor
 ┌──────────────────────────────────────────┐
 │      harness-research-mcp (Node.js)      │
 │                                          │
-│  Tools:                                  │
-│    harness_research — full deep research  │
-│    harness_search   — quick multi-search  │
-│    harness_status   — progress query      │
+│  Tool:                                   │
+│    deep_research — full deep research    │
 │                                          │
 │  6-Step Pipeline:                         │
 │    Plan → Search → CRAAP → Verify →       │

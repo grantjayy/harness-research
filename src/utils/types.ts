@@ -94,7 +94,7 @@ export interface ResearchStats {
 }
 
 export interface LLMConfig {
-  provider: "kimi" | "openrouter"
+  provider: "openrouter"
   model: string
   apiKey: string
   baseUrl: string

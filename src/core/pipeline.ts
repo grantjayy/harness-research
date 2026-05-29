@@ -58,8 +58,6 @@ export function getAllTasks(): ResearchTask[] {
 export function startResearchBackground(
   topic: string,
   options: {
-    provider?: string
-    model?: string
     outputDir?: string
     formats?: string[]
     sources?: string[]
@@ -76,7 +74,7 @@ export function startResearchBackground(
 ): string {
   const taskId = `research-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-  // Pre-register task so harness_status can find it immediately
+  // Pre-register task for internal progress tracking
   const task: ResearchTask = {
     id: taskId,
     topic,
@@ -102,8 +100,6 @@ type ProgressCallback = (step: string, progress: number, detail: string) => void
 export async function runResearch(
   topic: string,
   options: {
-    provider?: string
-    model?: string
     outputDir?: string
     formats?: string[]
     sources?: string[]
@@ -127,7 +123,7 @@ export async function runResearch(
 }> {
   const taskId = externalTaskId || `research-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const startTime = Date.now()
-  const llmConfig = createLLMConfig(options.provider, options.model)
+  const llmConfig = createLLMConfig()
   const outputDir = options.outputDir || process.cwd()
   const requestedFormats = options.formats || ["html", "docx"]
 
@@ -151,7 +147,7 @@ export async function runResearch(
   // Validate API key
   if (!llmConfig.apiKey) {
     task.status = "failed"
-    task.error = `Missing API key: ${llmConfig.provider === "openrouter" ? "OPENROUTER_API_KEY" : "KIMI_API_KEY"}`
+    task.error = "Missing API key: OPENROUTER_API_KEY"
     throw new Error(task.error)
   }
 

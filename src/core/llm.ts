@@ -4,21 +4,15 @@ import type { LLMConfig } from "../utils/types.js"
 import { sleep } from "../utils/json.js"
 import { LLM_TIMEOUT } from "../utils/config.js"
 
-/** Create LLM config from provider/model selection */
-export function createLLMConfig(provider?: string, model?: string): LLMConfig {
-  if (provider === "openrouter") {
-    return {
-      provider: "openrouter",
-      model: model || "anthropic/claude-sonnet-4",
-      apiKey: process.env.OPENROUTER_API_KEY || "",
-      baseUrl: "https://openrouter.ai/api/v1",
-    }
-  }
+export const RESEARCH_MODEL = "moonshotai/kimi-k2.5"
+
+/** Create the fixed research-model config. */
+export function createLLMConfig(): LLMConfig {
   return {
-    provider: "kimi",
-    model: model || "kimi-k2.5",
-    apiKey: process.env.KIMI_API_KEY || "",
-    baseUrl: process.env.KIMI_BASE_URL || "https://api.moonshot.ai/v1",
+    provider: "openrouter",
+    model: RESEARCH_MODEL,
+    apiKey: process.env.OPENROUTER_API_KEY || "",
+    baseUrl: "https://openrouter.ai/api/v1",
   }
 }
 
@@ -45,7 +39,7 @@ export async function callLLM(
         body: JSON.stringify({
           model: config.model,
           messages: [{ role: "user", content: prompt }],
-          temperature: config.provider === "kimi" ? 1 : temperature,
+          temperature,
           max_tokens: 8192,
         }),
         signal: AbortSignal.timeout(LLM_TIMEOUT),

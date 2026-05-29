@@ -31,8 +31,6 @@ Internal workflow:
 This call waits for the research run to finish. Configure the MCP client timeout high enough for deep research runs, usually 1200 seconds.`,
   {
     topic: z.string().describe("Deep research topic, e.g. 'Current best practices for AI agent memory systems'"),
-    provider: z.enum(["kimi", "openrouter"]).optional().describe("Research LLM provider: kimi (default) or openrouter."),
-    model: z.string().optional().describe("Research LLM model override."),
     output_dir: z.string().optional().describe("Output directory for report artifacts. Defaults to current working directory."),
     formats: z.array(z.enum(["html", "docx", "pdf", "markdown"])).optional()
       .describe("Requested output formats. Markdown is always generated as a fallback; default report formats are html and docx."),
@@ -62,14 +60,12 @@ This call waits for the research run to finish. Configure the MCP client timeout
       return {
         content: [{
           type: "text" as const,
-          text: "Missing required API keys. Need at least one search key (TAVILY_API_KEY or BRAVE_API_KEY) and one LLM key (KIMI_API_KEY or OPENROUTER_API_KEY) in ~/.harness-research/.env.",
+          text: "Missing required API keys. Need at least one search key (TAVILY_API_KEY or BRAVE_API_KEY) and OPENROUTER_API_KEY for Kimi through OpenRouter in ~/.harness-research/.env.",
         }],
       }
     }
 
     const result = await runResearch(args.topic, {
-      provider: args.provider,
-      model: args.model,
       outputDir: args.output_dir,
       formats: args.formats,
       sources: args.sources,
