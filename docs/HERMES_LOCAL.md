@@ -6,7 +6,23 @@ This fork is intended to run locally from source/build output behind Grant's laz
 
 This MCP is specifically a deep research tool. It is not a generic search MCP and it should not expose standalone search/read/extract tools to Hermes.
 
-The research model is fixed internally: Kimi K2.6 via OpenRouter (`moonshotai/kimi-k2.6`). Hermes should not select arbitrary LLM providers/models for this MCP.
+The top-level MCP contract is intentionally minimal:
+
+```json
+{
+  "topic": "Deep research topic"
+}
+```
+
+No source selection, model selection, output format, URL list, section caps, source caps, or output directory should be exposed to Hermes.
+
+The research model is fixed internally: Kimi K2.6 through Alloy Runtime using the Fireworks AI provider route:
+
+```text
+fireworks-ai/accounts/fireworks/models/kimi-k2p6
+```
+
+The X/Twitter search agent is fixed internally to Grok 4.3 unless overridden by `XAI_SEARCH_MODEL`.
 
 Top-level tool exposed by the MCP:
 
@@ -16,16 +32,22 @@ All source work happens internally inside that tool.
 
 ## Internal source integrations
 
-The `deep_research` tool owns these source integrations internally:
+Every research run uses the standard internal source set. Sources degrade gracefully if optional credentials or remote endpoints are unavailable.
 
-- Web search through Tavily and Brave
-- Academic search through arXiv and PubMed
-- Financial search through Tushare when the generated plan needs finance data
-- Reddit search
-- YouTube search and optional caption/transcript ingestion
-- X/Twitter search synthesis through xAI
-- Direct URL extraction through `web_extract`
-- Source-specific query parameters for web, Reddit, YouTube, X, and direct URLs
+Internal source integrations include:
+
+- Tavily web search when `TAVILY_API_KEY` is available
+- Brave web search when `BRAVE_API_KEY` is available
+- arXiv
+- PubMed
+- Tushare finance data when the generated plan identifies finance context and `TUSHARE_TOKEN` is available
+- Reddit public JSON search
+- YouTube search through YouTube Data API when `YOUTUBE_API_KEY` or `YOUTUBE_DATA_API_KEY` is available
+- YouTube caption/transcript ingestion whenever transcripts are available
+- X/Twitter search synthesis through xAI Grok with `tools: [{ type: "x_search" }]`
+- Direct web extraction from discovered web result URLs
+
+Hermes does not pass source lists or URLs. The MCP owns source discovery and extraction.
 
 ## Build and verify
 
@@ -42,12 +64,12 @@ npm run build
 
 All MCP servers for Grant's Hermes setup should be configured under lazy-mcp, not directly under Hermes `mcp_servers` except for the lazy-mcp aggregator itself.
 
-Add this server entry to `/Users/grantjordan/.config/lazy-mcp/servers.json` inside the `servers` array:
+Server entry in `/Users/grantjordan/.config/lazy-mcp/servers.json`:
 
 ```json
 {
   "name": "deep-research",
-  "description": "Local fork of harness-research exposed as one top-level deep_research tool. Internal source integrations include web, academic, Reddit, YouTube/transcripts, X/Twitter, direct URL extraction, and finance when relevant.",
+  "description": "Local fork of harness-research exposed as one topic-only deep_research tool. It runs internal multi-source research and returns the finished Markdown report inline.",
   "command": [
     "node",
     "/Users/grantjordan/programs/0_projects/harness-research/dist/index.js"
@@ -74,22 +96,35 @@ Restart Hermes/gateway only when Grant approves or does it himself.
 
 ## Credentials
 
-The server loads credentials from `~/.harness-research/.env` first, then fills any missing keys from Hermes Agent's standard `~/.hermes/.env`, without exposing secret values to the model context. Use these names:
+The server loads credentials from `~/.harness-research/.env` first, then fills any missing keys from Hermes Agent's standard secret stores, without exposing secret values to the model context:
+
+1. `~/.harness-research/.env`
+2. `~/.hermes/.env`
+3. `~/.hermes/hermes.env`
+4. legacy OpenCode research env path
+
+Use these names:
 
 ```bash
+ALLOY_RUNTIME_API_URL=...
+ALLOY_RUNTIME_API_KEY=...
 TAVILY_API_KEY=...
 BRAVE_API_KEY=...
-OPENROUTER_API_KEY=...
 YOUTUBE_API_KEY=...
+YOUTUBE_DATA_API_KEY=...
 XAI_API_KEY=...
 TUSHARE_TOKEN=...
 NCBI_API_KEY=...
 ```
 
-Minimum for full research reports: `OPENROUTER_API_KEY`. The MCP calls Kimi through OpenRouter using model `moonshotai/kimi-k2.6`; direct `KIMI_API_KEY` is not used by the deep research tool. Web search keys (`TAVILY_API_KEY` or `BRAVE_API_KEY`) are optional but recommended; without them the run relies on the other available internal sources such as Reddit, YouTube, X, academic sources, and direct URLs.
+Minimum for research reports:
 
-Optional expanded-source keys:
+- `ALLOY_RUNTIME_API_URL`
+- `ALLOY_RUNTIME_API_KEY`
 
+Optional expanded-source notes:
+
+- `TAVILY_API_KEY` or `BRAVE_API_KEY` strengthens general web search.
 - `YOUTUBE_API_KEY` or `YOUTUBE_DATA_API_KEY` enables YouTube search. Transcript fetch uses public captions when available.
 - `XAI_API_KEY` enables X/Twitter search synthesis. If it is absent, the local fork falls back to Hermes-managed xAI Grok OAuth / SuperGrok credentials from the Hermes auth store.
 - Reddit search uses Reddit public JSON endpoints and does not require OAuth.
@@ -98,13 +133,15 @@ Optional expanded-source keys:
 
 `deep_research` runs the full pipeline synchronously from the MCP client's perspective:
 
-1. Generate a research plan from the topic.
-2. Search enabled internal source classes.
-3. Deduplicate results.
-4. Evaluate sources with CRAAP-style source evaluation.
-5. Cross-verify findings.
-6. Write the report and render artifacts.
-7. Return output file paths, source stats, and summary.
+1. Receive `topic` only.
+2. Generate a research plan from the topic.
+3. Search the fixed internal source set.
+4. Deduplicate results.
+5. Automatically extract discovered web result URLs.
+6. Evaluate sources with CRAAP-style source evaluation.
+7. Cross-verify findings.
+8. Write the report.
+9. Return the finished Markdown report inline as the MCP tool output.
 
 Important: configure lazy-mcp / MCP client timeout high enough for full research runs, usually 1200 seconds.
 
@@ -112,30 +149,12 @@ Important: configure lazy-mcp / MCP client timeout high enough for full research
 
 ```json
 {
-  "topic": "Current best practices for AI agent memory systems",
-  "sources": ["tavily", "brave", "arxiv", "reddit", "youtube", "x", "web_extract"],
-  "include_youtube_transcripts": true,
-  "formats": ["html", "docx"],
-  "max_sections": 3,
-  "max_sources": 25
-}
-```
-
-For a quick live smoke test, constrain the report while still exercising the full synchronous MCP path:
-
-```json
-{
-  "topic": "Smoke test: is Tavily useful for MCP deep research agents?",
-  "sources": ["tavily"],
-  "web_queries": ["Tavily MCP deep research agents source integration"],
-  "formats": ["markdown"],
-  "max_sections": 1,
-  "max_sources": 3
+  "topic": "Current best practices for AI agent memory systems"
 }
 ```
 
 ## Notes
 
-- The server degrades gracefully when an optional source key is missing. For X/Twitter, a raw `XAI_API_KEY` is optional in Grant's Hermes setup because the local fork can fall back to Hermes-managed xAI Grok OAuth / SuperGrok credentials. If neither credential path is available, X returns no results while other sources still run.
-- Output files are written to the requested `output_dir` or the MCP process working directory.
+- Output is always Markdown returned inline. The MCP should not require or expose `output_dir`.
 - Search helpers remain internal implementation details. Do not expose them as top-level MCP tools unless Grant changes the product direction.
+- Do not add top-level parameters for source selection, formats, section limits, source limits, transcript toggles, URLs, providers, models, temperature, token limits, reasoning controls, or OpenRouter.

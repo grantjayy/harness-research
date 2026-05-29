@@ -39,6 +39,7 @@ export function loadEnv(): void {
   // behind Grant's lazy-mcp/Hermes setup, so reuse already-configured Hermes
   // API keys instead of requiring duplicate secrets in ~/.harness-research/.env.
   envPaths.push(path.join(process.env.HOME || "", ".hermes/.env"))
+  envPaths.push(path.join(process.env.HOME || "", ".hermes/hermes.env"))
 
   // Priority 3: legacy OpenCode location (for backward compat)
   const legacyPath = path.join(
@@ -80,9 +81,10 @@ export function isSetupComplete(): boolean {
 /** Get required API key status */
 export function getKeyStatus(): Record<string, boolean> {
   return {
+    ALLOY_RUNTIME_API_URL: !!process.env.ALLOY_RUNTIME_API_URL,
+    ALLOY_RUNTIME_API_KEY: !!process.env.ALLOY_RUNTIME_API_KEY,
     TAVILY_API_KEY: !!process.env.TAVILY_API_KEY,
     BRAVE_API_KEY: !!process.env.BRAVE_API_KEY,
-    OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
     XAI_API_KEY: !!process.env.XAI_API_KEY,
     YOUTUBE_API_KEY: !!(process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY),
     TUSHARE_TOKEN: !!process.env.TUSHARE_TOKEN,
@@ -90,10 +92,10 @@ export function getKeyStatus(): Record<string, boolean> {
   }
 }
 
-/** Check if the fixed OpenRouter research-model key is available */
+/** Check if the fixed Alloy Runtime research-model credentials are available */
 export function hasMinimalKeys(): boolean {
   const keys = getKeyStatus()
-  return keys.OPENROUTER_API_KEY
+  return keys.ALLOY_RUNTIME_API_URL && keys.ALLOY_RUNTIME_API_KEY
 }
 
 /** Check if puppeteer (PDF) is available */

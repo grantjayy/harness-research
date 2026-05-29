@@ -18,8 +18,7 @@ test("MCP exposes exactly one top-level deep research tool", async () => {
 
     const deepResearch = tools.tools[0]
     const inputKeys = Object.keys(deepResearch.inputSchema?.properties || {})
-    assert.ok(inputKeys.includes("topic"))
-    assert.ok(inputKeys.includes("sources"))
+    assert.deepEqual(inputKeys, ["topic"])
     assert.ok(!inputKeys.includes("provider"), "top-level tool should not expose LLM provider selection")
     assert.ok(!inputKeys.includes("model"), "top-level tool should not expose LLM model selection")
     assert.ok(!inputKeys.includes("query"), "top-level tool should not look like a generic search tool")

@@ -53,9 +53,9 @@ An MCP (Model Context Protocol) server that performs real-time deep research acr
 > Top-level surface: one tool, `deep_research`.
 >
 > **Synchronous workflow:**
-> `deep_research` waits for the full research run to finish and returns output artifact paths, source stats, and summary. Set the lazy-mcp timeout to **1200000 ms = 1200 seconds = 20 minutes** for full deep research runs.
+> `deep_research` waits for the full research run to finish and returns the finished Markdown report inline. Set the lazy-mcp timeout to **1200000 ms = 1200 seconds = 20 minutes** for full deep research runs.
 >
-> Internal research model: Kimi K2.6 through OpenRouter (`moonshotai/kimi-k2.6`).
+> Internal research model: Kimi K2.6 through Alloy Runtime / Fireworks (`fireworks-ai/accounts/fireworks/models/kimi-k2p6`).
 > ```json
 > {
 >   "mcpServers": {
@@ -89,13 +89,13 @@ Existing deep research tools (Perplexity Deep Research, ChatGPT Research, Gemini
 
 | Feature | Harness Research | Perplexity / ChatGPT / Gemini |
 |---------|-----------------|-------------------------------|
-| **Data sources** | 5 real-time search APIs (Tavily + Brave + arXiv + PubMed + Tushare) | Single search engine or model's internal knowledge |
+| **Data sources** | Standard internal source set: Tavily/Brave when available, arXiv, PubMed, Reddit, YouTube/transcripts, X search, direct extraction, finance when relevant | Single search engine or model's internal knowledge |
 | **Data freshness** | **100% real-time search** — zero reliance on LLM training data | Mixed stale knowledge + limited search |
 | **Source evaluation** | CRAAP framework with 5-dimension scoring + T0-T5 tier classification (530+ domain database) | None |
 | **Cross-verification** | Automatic conflict detection + counterintuitive finding identification | None |
 | **Citations** | Every reference tagged with source tier, credibility score, publication date | Simple URL list or no citations |
 | **LLM requirement** | Kimi K2.6 works great (~$0.01/run) | GPT-4 / Claude ($1-5/run) |
-| **Output formats** | HTML + DOCX + PDF + Markdown | Plain text |
+| **Output** | Inline Markdown report | Plain text |
 | **Integrability** | Standard MCP protocol — works with any Agent | Locked to specific platform |
 | **Open source** | Apache 2.0 | Proprietary |
 
@@ -128,7 +128,7 @@ Step 5 ── Parallel Writing (LLM)
          │  All chapters in parallel + executive summary
          ▼
 Step 6 ── Render Output (Code)
-         │  HTML + DOCX + PDF (macOS) + Markdown
+         │  Inline Markdown report
          ▼
     Professional research report (~10 minutes)
 ```
@@ -211,11 +211,12 @@ Harness Research does **not** rely on any LLM's historical knowledge. **All info
 |-----|---------|-----------|--------|------|
 | **TAVILY_API_KEY** | Advanced web search (deep scraping support) | Required (pick one) | [tavily.com](https://tavily.com) | Free 1000 calls/mo |
 | **BRAVE_API_KEY** | Privacy-focused web search | Required (pick one) | [brave.com/search/api](https://brave.com/search/api/) | Free 2000 calls/mo |
-| **OPENROUTER_API_KEY** | LLM reasoning with Kimi K2.6 via OpenRouter (`moonshotai/kimi-k2.6`) | Required | [openrouter.ai](https://openrouter.ai) | Per-model pricing |
+| **ALLOY_RUNTIME_API_URL** | Alloy Runtime endpoint for Kimi K2.6 via Fireworks | Required | Internal/Hermes env | Per-provider pricing |
+| **ALLOY_RUNTIME_API_KEY** | Alloy Runtime credential | Required | Internal/Hermes env | Per-provider pricing |
 | TUSHARE_TOKEN | Chinese A-share financial data | Optional | [tushare.pro](https://tushare.pro) | Free basic tier |
 | NCBI_API_KEY | PubMed academic paper search | Optional | [ncbi.nlm.nih.gov](https://ncbiinsights.ncbi.nlm.nih.gov/2017/11/02/new-api-keys-for-the-e-utilities/) | Free |
 
-**Minimum: 1 search key + OPENROUTER_API_KEY = 2 keys to get started.**
+**Minimum: Alloy Runtime credentials plus the built-in/free source integrations. Add Tavily or Brave keys for stronger general web search.**
 
 ### Why Kimi K2.6?
 

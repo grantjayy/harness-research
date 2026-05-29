@@ -1,17 +1,14 @@
 // Harness Research MCP Server — 6-Step Research Pipeline
-// Orchestrates the full deep research workflow
+// Orchestrates the full deep research workflow and returns Markdown inline.
 
-import fs from "node:fs"
-import path from "node:path"
 import type {
-  EvaluatedSource,
-  LLMConfig,
   ResearchPlan,
   ResearchStats,
   ResearchTask,
+  SearchResult,
 } from "../utils/types.js"
 import { MAX_SOURCES } from "../utils/config.js"
-import { generateFilename, safeJsonParse } from "../utils/json.js"
+import { safeJsonParse } from "../utils/json.js"
 import { loadPrompt } from "../utils/prompts.js"
 import { createLLMConfig, callLLM } from "./llm.js"
 import {
@@ -36,9 +33,6 @@ import {
   sanitizeHtml,
   htmlToMarkdown,
 } from "./render-html.js"
-import { renderDocx } from "./render-docx.js"
-import { isPdfAvailable, renderPdf } from "./render-pdf.js"
-import type { SearchResult } from "../utils/types.js"
 
 /** In-memory task store for progress tracking */
 const tasks = new Map<string, ResearchTask>()
@@ -53,30 +47,11 @@ export function getAllTasks(): ResearchTask[] {
 
 /**
  * Start research in the background (fire-and-forget).
- * Returns a task_id immediately. Use getTask() to poll progress.
+ * Kept for internal compatibility only; the MCP surface is synchronous.
  */
-export function startResearchBackground(
-  topic: string,
-  options: {
-    outputDir?: string
-    formats?: string[]
-    sources?: string[]
-    web_queries?: string[]
-    reddit_queries?: string[]
-    youtube_queries?: string[]
-    x_queries?: string[]
-    urls?: string[]
-    reddit_subreddit?: string
-    reddit_sort?: "relevance" | "hot" | "top" | "new" | "comments"
-    reddit_time_filter?: "hour" | "day" | "week" | "month" | "year" | "all"
-    include_youtube_transcripts?: boolean
-    max_sections?: number
-    max_sources?: number
-  },
-): string {
+export function startResearchBackground(topic: string): string {
   const taskId = `research-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-  // Pre-register task for internal progress tracking
   const task: ResearchTask = {
     id: taskId,
     topic,
@@ -87,9 +62,8 @@ export function startResearchBackground(
   }
   tasks.set(taskId, task)
 
-  // Fire and forget — do NOT await
-  runResearch(topic, options, undefined, taskId).catch(() => {
-    // Error is already captured in the task object by runResearch
+  runResearch(topic, undefined, taskId).catch(() => {
+    // Error is already captured in the task object by runResearch.
   })
 
   return taskId
@@ -98,41 +72,70 @@ export function startResearchBackground(
 /** Progress callback type */
 type ProgressCallback = (step: string, progress: number, detail: string) => void
 
+function sourceStatsTemplate(): ResearchStats {
+  return {
+    tavily: { queries: 0, results: 0 },
+    brave: { queries: 0, results: 0 },
+    arxiv: { queries: 0, results: 0 },
+    pubmed: { queries: 0, results: 0 },
+    tushare: { queries: 0, results: 0 },
+    reddit: { queries: 0, results: 0 },
+    youtube: { queries: 0, results: 0 },
+    youtube_transcript: { queries: 0, results: 0 },
+    x: { queries: 0, results: 0 },
+    web_extract: { queries: 0, results: 0 },
+    totalSources: 0,
+    rejectedSources: 0,
+    tierDistribution: {},
+  }
+}
+
+function countSourceStats(stats: ResearchStats, results: SearchResult[]): void {
+  for (const r of results) {
+    if (r.source === "tavily") stats.tavily.results++
+    else if (r.source === "brave") stats.brave.results++
+    else if (r.source === "arxiv") stats.arxiv.results++
+    else if (r.source === "pubmed") stats.pubmed.results++
+    else if (r.source === "tushare") stats.tushare.results++
+    else if (r.source === "reddit") stats.reddit.results++
+    else if (r.source === "youtube") stats.youtube.results++
+    else if (r.source === "youtube_transcript") stats.youtube_transcript.results++
+    else if (r.source === "x") stats.x.results++
+    else if (r.source === "web_extract") stats.web_extract.results++
+  }
+}
+
+function extractableUrls(results: SearchResult[]): string[] {
+  const skipHosts = ["youtube.com", "youtu.be", "reddit.com", "x.com", "twitter.com", "arxiv.org", "pubmed.ncbi.nlm.nih.gov"]
+  const urls: string[] = []
+  for (const r of results) {
+    try {
+      const u = new URL(r.url)
+      if (!u.protocol.startsWith("http")) continue
+      if (skipHosts.some(host => u.hostname.includes(host))) continue
+      if (!urls.includes(r.url)) urls.push(r.url)
+    } catch {
+      // Ignore malformed source URLs.
+    }
+  }
+  return urls.slice(0, 10)
+}
+
 /** Run the full 6-step research pipeline */
 export async function runResearch(
   topic: string,
-  options: {
-    outputDir?: string
-    formats?: string[]
-    sources?: string[]
-    web_queries?: string[]
-    reddit_queries?: string[]
-    youtube_queries?: string[]
-    x_queries?: string[]
-    urls?: string[]
-    reddit_subreddit?: string
-    reddit_sort?: "relevance" | "hot" | "top" | "new" | "comments"
-    reddit_time_filter?: "hour" | "day" | "week" | "month" | "year" | "all"
-    include_youtube_transcripts?: boolean
-    max_sections?: number
-    max_sources?: number
-  },
   onProgress?: ProgressCallback,
   externalTaskId?: string,
 ): Promise<{
   taskId: string
-  outputs: { html?: string; pdf?: string; docx?: string; markdown?: string }
+  markdown: string
   stats: ResearchStats
   summary: string
 }> {
   const taskId = externalTaskId || `research-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const startTime = Date.now()
   const llmConfig = createLLMConfig()
-  const outputDir = options.outputDir || process.cwd()
-  fs.mkdirSync(outputDir, { recursive: true })
-  const requestedFormats = options.formats || ["html", "docx"]
 
-  // Reuse pre-registered task if exists (from startResearchBackground), otherwise create new
   const task: ResearchTask = tasks.get(taskId) || {
     id: taskId,
     topic,
@@ -152,28 +155,13 @@ export async function runResearch(
     onProgress?.(step, progress, detail)
   }
 
-  // Validate API key
-  if (!llmConfig.apiKey) {
+  if (!llmConfig.apiKey || !llmConfig.baseUrl) {
     task.status = "failed"
-    task.error = "Missing API key: OPENROUTER_API_KEY"
+    task.error = "Missing Alloy Runtime credentials: ALLOY_RUNTIME_API_URL and ALLOY_RUNTIME_API_KEY"
     throw new Error(task.error)
   }
 
-  const stats: ResearchStats = {
-    tavily: { queries: 0, results: 0 },
-    brave: { queries: 0, results: 0 },
-    arxiv: { queries: 0, results: 0 },
-    pubmed: { queries: 0, results: 0 },
-    tushare: { queries: 0, results: 0 },
-    reddit: { queries: 0, results: 0 },
-    youtube: { queries: 0, results: 0 },
-    youtube_transcript: { queries: 0, results: 0 },
-    x: { queries: 0, results: 0 },
-    web_extract: { queries: 0, results: 0 },
-    totalSources: 0,
-    rejectedSources: 0,
-    tierDistribution: {},
-  }
+  const stats = sourceStatsTemplate()
 
   try {
     // ── Step 1/6: Research Plan ──
@@ -187,84 +175,45 @@ export async function runResearch(
       throw new Error(`Research plan generation failed. Raw output: ${planRaw.slice(0, 300)}`)
     }
 
-    if (options.max_sections && options.max_sections > 0) {
-      plan.sections = plan.sections.slice(0, options.max_sections)
-    }
-
     const elapsed1 = Math.round((Date.now() - startTime) / 1000)
     report("Step 1/6", 15, `Done (${elapsed1}s) | Plan: ${plan.sections.length} sections`)
 
     // ── Step 2/6: Multi-source Search ──
-    const enabledSources = new Set(options.sources || [
-      "tavily",
-      "brave",
-      "arxiv",
-      "pubmed",
-      "tushare",
-      "reddit",
-      "youtube",
-      "x",
-      "web_extract",
-    ])
-    report("Step 2/6", 20, `Searching across ${enabledSources.size} enabled source classes...`)
+    report("Step 2/6", 20, "Searching standard source set...")
 
-    const querySet = buildSourceQueries({
-      query: topic,
-      web_queries: options.web_queries,
-      reddit_queries: options.reddit_queries,
-      youtube_queries: options.youtube_queries,
-      x_queries: options.x_queries,
-      urls: options.urls,
-    })
-    const webKeywords = options.web_queries?.length ? querySet.web : (plan.search_keywords?.web || querySet.web)
+    const querySet = buildSourceQueries({ query: topic })
+    const webKeywords = plan.search_keywords?.web?.length ? plan.search_keywords.web : querySet.web
     const academicKeywords = plan.search_keywords?.academic || []
 
     const searchPromises: Promise<SearchResult[]>[] = []
-    if (enabledSources.has("tavily")) {
-      stats.tavily.queries = Math.min(webKeywords.length, 4)
-      searchPromises.push(searchTavily(webKeywords))
-    }
-    if (enabledSources.has("brave")) {
-      stats.brave.queries = Math.min(webKeywords.length, 4)
-      searchPromises.push(searchBrave(webKeywords))
-    }
+
+    stats.tavily.queries = Math.min(webKeywords.length, 4)
+    searchPromises.push(searchTavily(webKeywords))
+
+    stats.brave.queries = Math.min(webKeywords.length, 4)
+    searchPromises.push(searchBrave(webKeywords))
+
     if (plan.data_sources?.academic !== false) {
-      if (enabledSources.has("arxiv")) {
-        stats.arxiv.queries = 1
-        searchPromises.push(searchArxiv(academicKeywords))
-      }
-      if (enabledSources.has("pubmed")) {
-        stats.pubmed.queries = 1
-        searchPromises.push(searchPubmed(academicKeywords))
-      }
+      stats.arxiv.queries = 1
+      searchPromises.push(searchArxiv(academicKeywords))
+
+      stats.pubmed.queries = 1
+      searchPromises.push(searchPubmed(academicKeywords))
     }
-    if (enabledSources.has("tushare") && plan.data_sources?.finance && plan.finance_context) {
+
+    if (plan.data_sources?.finance && plan.finance_context) {
       stats.tushare.queries = (plan.finance_context.stock_codes || []).length
       searchPromises.push(searchTushare(plan.finance_context))
     }
-    if (enabledSources.has("reddit")) {
-      stats.reddit.queries = querySet.reddit.length
-      searchPromises.push(searchReddit(querySet.reddit, {
-        subreddit: options.reddit_subreddit,
-        sort: options.reddit_sort,
-        time_filter: options.reddit_time_filter,
-      }))
-    }
-    if (enabledSources.has("youtube")) {
-      if (options.include_youtube_transcripts) stats.youtube_transcript.queries = querySet.youtube.length
-      else stats.youtube.queries = querySet.youtube.length
-      searchPromises.push(searchYoutube(querySet.youtube, {
-        include_transcripts: options.include_youtube_transcripts,
-      }))
-    }
-    if (enabledSources.has("x")) {
-      stats.x.queries = querySet.x.length
-      searchPromises.push(searchX(querySet.x))
-    }
-    if (enabledSources.has("web_extract") && querySet.urls.length > 0) {
-      stats.web_extract.queries = querySet.urls.length
-      searchPromises.push(extractWebPages(querySet.urls))
-    }
+
+    stats.reddit.queries = querySet.reddit.length
+    searchPromises.push(searchReddit(querySet.reddit))
+
+    stats.youtube_transcript.queries = querySet.youtube.length
+    searchPromises.push(searchYoutube(querySet.youtube, { include_transcripts: true }))
+
+    stats.x.queries = querySet.x.length
+    searchPromises.push(searchX(querySet.x))
 
     const searchResults = await Promise.allSettled(searchPromises)
     let allResults: SearchResult[] = []
@@ -272,33 +221,27 @@ export async function runResearch(
       if (r.status === "fulfilled") allResults = allResults.concat(r.value)
     }
 
-    // Count per source
-    for (const r of allResults) {
-      if (r.source === "tavily") stats.tavily.results++
-      else if (r.source === "brave") stats.brave.results++
-      else if (r.source === "arxiv") stats.arxiv.results++
-      else if (r.source === "pubmed") stats.pubmed.results++
-      else if (r.source === "tushare") stats.tushare.results++
-      else if (r.source === "reddit") stats.reddit.results++
-      else if (r.source === "youtube") stats.youtube.results++
-      else if (r.source === "youtube_transcript") stats.youtube_transcript.results++
-      else if (r.source === "x") stats.x.results++
-      else if (r.source === "web_extract") stats.web_extract.results++
+    // Always run direct web extraction against discovered web URLs. This keeps
+    // web_extract internal and automatic instead of requiring top-level URLs.
+    const urlsToExtract = extractableUrls(allResults)
+    stats.web_extract.queries = urlsToExtract.length
+    if (urlsToExtract.length > 0) {
+      const extracted = await extractWebPages(urlsToExtract)
+      allResults = allResults.concat(extracted)
     }
 
+    countSourceStats(stats, allResults)
+
     let dedupedResults = dedup(allResults)
-    const sourceLimit = options.max_sources && options.max_sources > 0
-      ? Math.min(options.max_sources, MAX_SOURCES)
-      : MAX_SOURCES
-    if (dedupedResults.length > sourceLimit) {
-      dedupedResults = dedupedResults.slice(0, sourceLimit)
+    if (dedupedResults.length > MAX_SOURCES) {
+      dedupedResults = dedupedResults.slice(0, MAX_SOURCES)
     }
 
     const elapsed2 = Math.round((Date.now() - startTime) / 1000)
     report("Step 2/6", 35, `Done (${elapsed2}s) | ${allResults.length} results → ${dedupedResults.length} after dedup`)
 
     if (dedupedResults.length === 0) {
-      throw new Error("All search sources returned 0 results. Check API keys and network.")
+      throw new Error("All search sources returned 0 results. Check API keys, credentials, and network.")
     }
 
     // ── Step 3/6: CRAAP Evaluation ──
@@ -351,8 +294,8 @@ export async function runResearch(
     const elapsed5 = Math.round((Date.now() - startTime) / 1000)
     report("Step 5/6", 88, `Done (${elapsed5}s) | ${chapters.length} chapters + summary`)
 
-    // ── Step 6/6: Rendering ──
-    report("Step 6/6", 90, "Rendering report...")
+    // ── Step 6/6: Rendering Markdown ──
+    report("Step 6/6", 90, "Rendering Markdown report...")
 
     const referencesHtml = generateReferencesHtml(evaluatedSources)
     const fullHtml = mergeHtml(topic, {
@@ -360,90 +303,22 @@ export async function runResearch(
       chapters,
       references: referencesHtml,
     })
-
-    const baseName = generateFilename()
-    const outputs: { html?: string; pdf?: string; docx?: string; markdown?: string } = {}
-
-    // Sanitize HTML
     const cleanHtml = await sanitizeHtml(fullHtml)
-
-    // HTML output
-    if (requestedFormats.includes("html")) {
-      const htmlPath = path.join(outputDir, `${baseName}.html`)
-      fs.writeFileSync(htmlPath, cleanHtml, "utf-8")
-      outputs.html = htmlPath
-    }
-
-    // DOCX output
-    if (requestedFormats.includes("docx")) {
-      try {
-        const docxPath = path.join(outputDir, `${baseName}.docx`)
-        await renderDocx(cleanHtml, docxPath)
-        if (fs.existsSync(docxPath)) {
-          outputs.docx = docxPath
-        }
-      } catch (e: any) {
-        console.error("DOCX render failed:", e.message)
-      }
-    }
-
-    // PDF output (macOS only)
-    if (requestedFormats.includes("pdf")) {
-      const pdfOk = await isPdfAvailable()
-      if (pdfOk) {
-        try {
-          // Write temp HTML for PDF rendering
-          const tempHtmlPath = path.join(outputDir, `${baseName}-temp.html`)
-          fs.writeFileSync(tempHtmlPath, cleanHtml, "utf-8")
-          const pdfPath = path.join(outputDir, `${baseName}.pdf`)
-          const success = await renderPdf(tempHtmlPath, pdfPath)
-          if (success) outputs.pdf = pdfPath
-          // Cleanup temp
-          if (fs.existsSync(tempHtmlPath)) fs.unlinkSync(tempHtmlPath)
-        } catch (e: any) {
-          console.error("PDF render failed:", e.message)
-        }
-      }
-    }
-
-    // Markdown output (always generated as fallback)
     const markdown = htmlToMarkdown(cleanHtml)
-    const mdPath = path.join(outputDir, `${baseName}.md`)
-    fs.writeFileSync(mdPath, markdown, "utf-8")
-    outputs.markdown = mdPath
 
     const elapsed6 = Math.round((Date.now() - startTime) / 1000)
     report("Step 6/6", 100, `Complete (${elapsed6}s)`)
 
-    // Update task
     task.status = "completed"
     task.endTime = Date.now()
-    task.outputs = outputs
-
-    const outputList = Object.entries(outputs)
-      .map(([format, filePath]) => `  ${format.toUpperCase()}: ${filePath}`)
-      .join("\n")
 
     const tierDist = Object.entries(stats.tierDistribution)
       .map(([t, c]) => `T${t}:${c}`)
       .join(" | ")
 
-    const summary = `Deep research report generated!
+    const summary = `Deep research report generated inline.\n\nStatistics:\n- Duration: ${elapsed6}s\n- LLM: ${llmConfig.provider} (${llmConfig.model})\n- Search results: ${allResults.length} (${dedupedResults.length} after dedup)\n- CRAAP evaluation: ${stats.totalSources}/${totalBefore} passed (threshold 4.5)\n- Source tiers: ${tierDist}\n- Sections: ${chapters.length} + executive summary + references\n- Verified data points: ${verification.verified_data_points.length}\n- Conflicting data points: ${verification.conflicting_data_points.length}`
 
-Output files:
-${outputList}
-
-Statistics:
-- Duration: ${elapsed6}s
-- LLM: ${llmConfig.provider} (${llmConfig.model})
-- Search results: ${allResults.length} (${dedupedResults.length} after dedup)
-- CRAAP evaluation: ${stats.totalSources}/${totalBefore} passed (threshold 4.5)
-- Source tiers: ${tierDist}
-- Sections: ${chapters.length} + executive summary + references
-- Verified data points: ${verification.verified_data_points.length}
-- Conflicting data points: ${verification.conflicting_data_points.length}`
-
-    return { taskId, outputs, stats, summary }
+    return { taskId, markdown, stats, summary }
   } catch (e: any) {
     task.status = "failed"
     task.error = e.message

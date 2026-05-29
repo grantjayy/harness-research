@@ -482,7 +482,7 @@ Return common patterns, named tools/accounts, specific implementation details, c
         method: "POST",
         headers: { Authorization: `Bearer ${creds.apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: process.env.XAI_SEARCH_MODEL || "grok-4.20-reasoning",
+          model: process.env.XAI_SEARCH_MODEL || "grok-4.3",
           input: [{ role: "user", content: prompt }],
           tools: [{ type: "x_search" }],
           store: false,

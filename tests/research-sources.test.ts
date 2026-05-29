@@ -128,7 +128,9 @@ test("extractWebPages turns HTML into text snippets", async () => {
 test("searchX sends a deep-search prompt to xAI when XAI_API_KEY is set", async () => {
   const originalFetch = globalThis.fetch
   const originalKey = process.env.XAI_API_KEY
+  const originalModel = process.env.XAI_SEARCH_MODEL
   process.env.XAI_API_KEY = "test-xai-key"
+  delete process.env.XAI_SEARCH_MODEL
 
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     assert.equal(String(input), "https://api.x.ai/v1/responses")
@@ -136,6 +138,7 @@ test("searchX sends a deep-search prompt to xAI when XAI_API_KEY is set", async 
     assert.match(body.input[0].content, /Search X deeply/)
     assert.match(body.input[0].content, /agent memory/)
     assert.deepEqual(body.tools, [{ type: "x_search" }])
+    assert.equal(body.model, "grok-4.3")
     return new Response(JSON.stringify({
       output_text: "Found posts about agent memory workflows and implementation caveats.",
       citations: ["https://x.com/example/status/1"],
@@ -150,6 +153,8 @@ test("searchX sends a deep-search prompt to xAI when XAI_API_KEY is set", async 
   } finally {
     if (originalKey === undefined) delete process.env.XAI_API_KEY
     else process.env.XAI_API_KEY = originalKey
+    if (originalModel === undefined) delete process.env.XAI_SEARCH_MODEL
+    else process.env.XAI_SEARCH_MODEL = originalModel
     globalThis.fetch = originalFetch
   }
 })

@@ -1,10 +1,9 @@
 // Harness Research MCP Server — Interactive Setup Wizard
-// Guides users through API key configuration on first use
+// Guides users through local credential configuration.
 
 import fs from "node:fs"
-import path from "node:path"
 import { createInterface } from "node:readline"
-import { CONFIG_DIR, ENV_PATH, ensureConfigDir, getPlatformCapabilities } from "../utils/config.js"
+import { ENV_PATH, ensureConfigDir } from "../utils/config.js"
 
 function createPrompt(): { ask: (question: string) => Promise<string>; close: () => void } {
   const rl = createInterface({ input: process.stdin, output: process.stdout })
@@ -23,77 +22,48 @@ export async function setupWizard(): Promise<void> {
   console.log("")
   console.log("╔══════════════════════════════════════════════════════╗")
   console.log("║       Harness Research MCP — Setup Wizard           ║")
-  console.log("║  Multi-source deep research with CRAAP evaluation   ║")
+  console.log("║  Topic-only deep research returning Markdown inline ║")
   console.log("╚══════════════════════════════════════════════════════╝")
   console.log("")
 
-  // Step 1: Environment check
-  console.log("── Step 1: Environment Check ──")
-  const caps = await getPlatformCapabilities()
-  console.log(`  OS: ${caps.os}`)
-  console.log(`  Node.js: ${process.version}`)
-  console.log(`  HTML output: ✅`)
-  console.log(`  DOCX output: ✅`)
-  console.log(`  PDF output: ${caps.pdf ? "✅ (Puppeteer available)" : "❌ (macOS + Puppeteer required)"}`)
-  console.log("")
-
-  // Step 2: API Key configuration
-  console.log("── Step 2: API Key Configuration ──")
-  console.log("")
-  console.log("  You need at least ONE search engine key and ONE LLM key.")
+  console.log("── API Key Configuration ──")
+  console.log("  Required model route: Kimi K2.6 through Alloy Runtime / Fireworks")
+  console.log("  Model: fireworks-ai/accounts/fireworks/models/kimi-k2p6")
   console.log("")
 
   const envVars: Record<string, string> = {}
 
-  // Search keys
-  console.log("  [SEARCH ENGINES] (at least one required)")
+  const alloyUrl = await prompt.ask("  Alloy Runtime API URL: ")
+  if (alloyUrl) envVars.ALLOY_RUNTIME_API_URL = alloyUrl
+
+  const alloyKey = await prompt.ask("  Alloy Runtime API Key: ")
+  if (alloyKey) envVars.ALLOY_RUNTIME_API_KEY = alloyKey
+
+  console.log("")
+  console.log("  [OPTIONAL SOURCE CREDENTIALS] (press Enter to skip)")
+  console.log("  Missing optional sources degrade gracefully; Hermes env fallback is also supported.")
   console.log("")
 
-  const tavilyKey = await prompt.ask("  Tavily API Key (https://tavily.com, press Enter to skip): ")
+  const tavilyKey = await prompt.ask("  Tavily API Key: ")
   if (tavilyKey) envVars.TAVILY_API_KEY = tavilyKey
 
-  const braveKey = await prompt.ask("  Brave Search API Key (https://brave.com/search/api, press Enter to skip): ")
+  const braveKey = await prompt.ask("  Brave Search API Key: ")
   if (braveKey) envVars.BRAVE_API_KEY = braveKey
 
-  if (!tavilyKey && !braveKey) {
-    console.log("")
-    console.log("  ⚠ WARNING: No search engine key provided.")
-    console.log("  You need at least one (Tavily or Brave) for research to work.")
-    const cont = await prompt.ask("  Continue anyway? (y/N): ")
-    if (cont.toLowerCase() !== "y") {
-      prompt.close()
-      process.exit(1)
-    }
-  }
-
-  console.log("")
-  console.log("  [RESEARCH MODEL] (required)")
-  console.log("  Kimi K2.6 through OpenRouter: moonshotai/kimi-k2.6")
-  console.log("")
-
-  const orKey = await prompt.ask("  OpenRouter API Key (https://openrouter.ai): ")
-  if (orKey) envVars.OPENROUTER_API_KEY = orKey
-
-  // Optional keys
-  console.log("")
-  console.log("  [OPTIONAL DATA SOURCES] (press Enter to skip all)")
-  console.log("")
-
-  const tushareKey = await prompt.ask("  Tushare Token (https://tushare.pro — Chinese financial data): ")
-  if (tushareKey) envVars.TUSHARE_TOKEN = tushareKey
-
-  const ncbiKey = await prompt.ask("  NCBI API Key (https://ncbiinsights.ncbi.nlm.nih.gov — PubMed): ")
-  if (ncbiKey) envVars.NCBI_API_KEY = ncbiKey
-
-  const youtubeKey = await prompt.ask("  YouTube Data API Key (YouTube search, transcripts use public captions when available): ")
+  const youtubeKey = await prompt.ask("  YouTube Data API Key: ")
   if (youtubeKey) envVars.YOUTUBE_API_KEY = youtubeKey
 
-  const xaiKey = await prompt.ask("  xAI API Key (X/Twitter search synthesis): ")
+  const xaiKey = await prompt.ask("  xAI API Key (optional; Hermes xAI OAuth fallback can be used): ")
   if (xaiKey) envVars.XAI_API_KEY = xaiKey
 
-  // Step 3: Write config
+  const tushareKey = await prompt.ask("  Tushare Token: ")
+  if (tushareKey) envVars.TUSHARE_TOKEN = tushareKey
+
+  const ncbiKey = await prompt.ask("  NCBI API Key: ")
+  if (ncbiKey) envVars.NCBI_API_KEY = ncbiKey
+
   console.log("")
-  console.log("── Step 3: Saving Configuration ──")
+  console.log("── Saving Configuration ──")
   ensureConfigDir()
 
   const envContent = Object.entries(envVars)
@@ -102,81 +72,11 @@ export async function setupWizard(): Promise<void> {
 
   fs.writeFileSync(ENV_PATH, `# Harness Research MCP — API Keys\n# Generated by setup wizard\n\n${envContent}\n`)
   console.log(`  Config saved to: ${ENV_PATH}`)
-
-  // Step 4: Smoke test
   console.log("")
-  console.log("── Step 4: Connection Test ──")
-
-  // Test search
-  const hasSearch = envVars.TAVILY_API_KEY || envVars.BRAVE_API_KEY
-  if (hasSearch) {
-    try {
-      if (envVars.TAVILY_API_KEY) {
-        const resp = await fetch("https://api.tavily.com/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            api_key: envVars.TAVILY_API_KEY,
-            query: "test",
-            max_results: 1,
-          }),
-          signal: AbortSignal.timeout(10000),
-        })
-        console.log(`  Tavily API: ${resp.ok ? "✅ Connected" : `❌ HTTP ${resp.status}`}`)
-      }
-      if (envVars.BRAVE_API_KEY) {
-        const resp = await fetch("https://api.search.brave.com/res/v1/web/search?q=test&count=1", {
-          headers: { "X-Subscription-Token": envVars.BRAVE_API_KEY },
-          signal: AbortSignal.timeout(10000),
-        })
-        console.log(`  Brave API: ${resp.ok ? "✅ Connected" : `❌ HTTP ${resp.status}`}`)
-      }
-    } catch (e: any) {
-      console.log(`  Search API test failed: ${e.message}`)
-    }
-  }
-
-  // Test LLM
-  const llmKey = envVars.OPENROUTER_API_KEY
-  if (llmKey) {
-    try {
-      const resp = await fetch("https://openrouter.ai/api/v1/models", {
-        headers: { Authorization: `Bearer ${llmKey}` },
-        signal: AbortSignal.timeout(10000),
-      })
-      console.log(`  OpenRouter API: ${resp.ok ? "✅ Connected" : `❌ HTTP ${resp.status}`}`)
-    } catch (e: any) {
-      console.log(`  LLM API test failed: ${e.message}`)
-    }
-  }
-
-  // Step 5: Output MCP config
+  console.log("  Top-level MCP input schema is intentionally topic-only:")
+  console.log('  { "topic": "..." }')
   console.log("")
-  console.log("── Step 5: MCP Client Configuration ──")
-  console.log("")
-  console.log("  ✅ Setup complete! Copy the config below into your AI agent:")
-  console.log("")
-  console.log("  ┌─ Claude Desktop / Cursor / OpenCode ─────────────────┐")
-  console.log('  │ {                                                     │')
-  console.log('  │   "mcpServers": {                                     │')
-  console.log('  │     "harness-research": {                             │')
-  console.log('  │       "command": "npx",                               │')
-  console.log('  │       "args": ["-y", "harness-research-mcp"]          │')
-  console.log('  │     }                                                 │')
-  console.log('  │   }                                                   │')
-  console.log('  │ }                                                     │')
-  console.log("  └───────────────────────────────────────────────────────┘")
-  console.log("")
-  console.log("  ┌─ OpenClaw ───────────────────────────────────────────┐")
-  console.log("  │ openclaw mcp set harness-research \\                  │")
-  console.log("  │   '{\"command\":\"npx\",\"args\":[\"-y\",\"harness-research-mcp\"]}' │")
-  console.log("  └───────────────────────────────────────────────────────┘")
-  console.log("")
-
-  const outputFormats = ["HTML ✅", "DOCX ✅"]
-  if (caps.pdf) outputFormats.push("PDF ✅")
-  else outputFormats.push("PDF ❌ (macOS only)")
-  console.log(`  Available output formats: ${outputFormats.join("  ")}`)
+  console.log("  Output is always the finished Markdown report returned inline.")
   console.log("")
 
   prompt.close()

@@ -94,7 +94,7 @@ export interface ResearchStats {
 }
 
 export interface LLMConfig {
-  provider: "openrouter"
+  provider: "alloy-runtime"
   model: string
   apiKey: string
   baseUrl: string
