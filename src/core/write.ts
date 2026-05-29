@@ -80,7 +80,7 @@ export async function writeSections(
     })
 
     try {
-      const raw = await callLLM(llmConfig, prompt, 0.4)
+      const raw = await callLLM(llmConfig, prompt)
       const parsed = safeJsonParse<{ analysis: any; html: string }>(raw, null as any)
       if (parsed && parsed.html) {
         return {
@@ -150,7 +150,7 @@ export async function writeExecSummary(
   })
 
   try {
-    const summaryRaw = await callLLM(llmConfig, summaryPrompt, 0.3)
+    const summaryRaw = await callLLM(llmConfig, summaryPrompt)
     return extractHtml(summaryRaw)
   } catch {
     return `<h2>Executive Summary</h2><p>Summary generation failed.</p>`

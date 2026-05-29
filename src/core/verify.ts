@@ -23,7 +23,7 @@ export async function verify(
     FACTS: factsText,
   })
 
-  const verifyRaw = await callLLM(llmConfig, verifyPrompt, 0.3)
+  const verifyRaw = await callLLM(llmConfig, verifyPrompt)
   return safeJsonParse<VerificationResult>(verifyRaw, {
     verified_data_points: [],
     conflicting_data_points: [],

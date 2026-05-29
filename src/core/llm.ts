@@ -20,7 +20,6 @@ export function createLLMConfig(): LLMConfig {
 export async function callLLM(
   config: LLMConfig,
   prompt: string,
-  temperature: number = 0.3,
 ): Promise<string> {
   const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`
 
@@ -39,7 +38,6 @@ export async function callLLM(
         body: JSON.stringify({
           model: config.model,
           messages: [{ role: "user", content: prompt }],
-          temperature,
         }),
         signal: AbortSignal.timeout(LLM_TIMEOUT),
       })

@@ -3,6 +3,7 @@
 
 import * as cheerio from "cheerio"
 import { execFileSync } from "node:child_process"
+import fs from "node:fs"
 import type { SearchResult } from "../utils/types.js"
 import { sleep } from "../utils/json.js"
 import { SEARCH_TIMEOUT } from "../utils/config.js"
@@ -515,7 +516,7 @@ function resolveXaiCredentials(): { apiKey: string; baseUrl: string; source: str
   // OAuth instead of a raw XAI_API_KEY.
   try {
     const hermesAgentPath = `${process.env.HOME || ""}/.hermes/hermes-agent`
-    const output = execFileSync("python3", ["-c", `
+    const output = execFileSync(resolveHermesPython(hermesAgentPath), ["-c", `
 import json, os, sys
 sys.path.insert(0, os.path.expanduser("~/.hermes/hermes-agent"))
 from tools.xai_http import resolve_xai_http_credentials
@@ -539,6 +540,17 @@ print(json.dumps({
     // Fall through to XAI_API_KEY.
   }
   return null
+}
+
+function resolveHermesPython(hermesAgentPath: string): string {
+  for (const candidate of [
+    `${hermesAgentPath}/.venv/bin/python`,
+    `${hermesAgentPath}/venv/bin/python`,
+    "python3",
+  ]) {
+    if (candidate === "python3" || fs.existsSync(candidate)) return candidate
+  }
+  return "python3"
 }
 
 function extractXResponseText(data: any): string {
