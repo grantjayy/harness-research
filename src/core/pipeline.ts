@@ -20,7 +20,12 @@ import {
   searchArxiv,
   searchPubmed,
   searchTushare,
+  searchReddit,
+  searchYoutube,
+  searchX,
+  extractWebPages,
 } from "./search.js"
+import { buildSourceQueries } from "./source-params.js"
 import { dedup } from "./dedup.js"
 import { evaluateSources } from "./craap.js"
 import { verify } from "./verify.js"
@@ -57,6 +62,16 @@ export function startResearchBackground(
     model?: string
     outputDir?: string
     formats?: string[]
+    sources?: string[]
+    web_queries?: string[]
+    reddit_queries?: string[]
+    youtube_queries?: string[]
+    x_queries?: string[]
+    urls?: string[]
+    reddit_subreddit?: string
+    reddit_sort?: "relevance" | "hot" | "top" | "new" | "comments"
+    reddit_time_filter?: "hour" | "day" | "week" | "month" | "year" | "all"
+    include_youtube_transcripts?: boolean
   },
 ): string {
   const taskId = `research-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -91,6 +106,16 @@ export async function runResearch(
     model?: string
     outputDir?: string
     formats?: string[]
+    sources?: string[]
+    web_queries?: string[]
+    reddit_queries?: string[]
+    youtube_queries?: string[]
+    x_queries?: string[]
+    urls?: string[]
+    reddit_subreddit?: string
+    reddit_sort?: "relevance" | "hot" | "top" | "new" | "comments"
+    reddit_time_filter?: "hour" | "day" | "week" | "month" | "year" | "all"
+    include_youtube_transcripts?: boolean
   },
   onProgress?: ProgressCallback,
   externalTaskId?: string,
@@ -136,6 +161,11 @@ export async function runResearch(
     arxiv: { queries: 0, results: 0 },
     pubmed: { queries: 0, results: 0 },
     tushare: { queries: 0, results: 0 },
+    reddit: { queries: 0, results: 0 },
+    youtube: { queries: 0, results: 0 },
+    youtube_transcript: { queries: 0, results: 0 },
+    x: { queries: 0, results: 0 },
+    web_extract: { queries: 0, results: 0 },
     totalSources: 0,
     rejectedSources: 0,
     tierDistribution: {},
@@ -157,27 +187,75 @@ export async function runResearch(
     report("Step 1/6", 15, `Done (${elapsed1}s) | Plan: ${plan.sections.length} sections`)
 
     // ── Step 2/6: Multi-source Search ──
-    report("Step 2/6", 20, "Searching across 5 data sources...")
+    const enabledSources = new Set(options.sources || [
+      "tavily",
+      "brave",
+      "arxiv",
+      "pubmed",
+      "tushare",
+      "reddit",
+      "youtube",
+      "x",
+      "web_extract",
+    ])
+    report("Step 2/6", 20, `Searching across ${enabledSources.size} enabled source classes...`)
 
-    const webKeywords = plan.search_keywords?.web || []
+    const querySet = buildSourceQueries({
+      query: topic,
+      web_queries: options.web_queries,
+      reddit_queries: options.reddit_queries,
+      youtube_queries: options.youtube_queries,
+      x_queries: options.x_queries,
+      urls: options.urls,
+    })
+    const webKeywords = options.web_queries?.length ? querySet.web : (plan.search_keywords?.web || querySet.web)
     const academicKeywords = plan.search_keywords?.academic || []
 
-    stats.tavily.queries = Math.min(webKeywords.length, 4)
-    stats.brave.queries = Math.min(webKeywords.length, 4)
-
-    const searchPromises: Promise<SearchResult[]>[] = [
-      searchTavily(webKeywords),
-      searchBrave(webKeywords),
-    ]
-    if (plan.data_sources?.academic !== false) {
-      stats.arxiv.queries = 1
-      stats.pubmed.queries = 1
-      searchPromises.push(searchArxiv(academicKeywords))
-      searchPromises.push(searchPubmed(academicKeywords))
+    const searchPromises: Promise<SearchResult[]>[] = []
+    if (enabledSources.has("tavily")) {
+      stats.tavily.queries = Math.min(webKeywords.length, 4)
+      searchPromises.push(searchTavily(webKeywords))
     }
-    if (plan.data_sources?.finance && plan.finance_context) {
+    if (enabledSources.has("brave")) {
+      stats.brave.queries = Math.min(webKeywords.length, 4)
+      searchPromises.push(searchBrave(webKeywords))
+    }
+    if (plan.data_sources?.academic !== false) {
+      if (enabledSources.has("arxiv")) {
+        stats.arxiv.queries = 1
+        searchPromises.push(searchArxiv(academicKeywords))
+      }
+      if (enabledSources.has("pubmed")) {
+        stats.pubmed.queries = 1
+        searchPromises.push(searchPubmed(academicKeywords))
+      }
+    }
+    if (enabledSources.has("tushare") && plan.data_sources?.finance && plan.finance_context) {
       stats.tushare.queries = (plan.finance_context.stock_codes || []).length
       searchPromises.push(searchTushare(plan.finance_context))
+    }
+    if (enabledSources.has("reddit")) {
+      stats.reddit.queries = querySet.reddit.length
+      searchPromises.push(searchReddit(querySet.reddit, {
+        subreddit: options.reddit_subreddit,
+        sort: options.reddit_sort,
+        time_filter: options.reddit_time_filter,
+      }))
+    }
+    if (enabledSources.has("youtube")) {
+      if (options.include_youtube_transcripts) stats.youtube_transcript.queries = querySet.youtube.length
+      else stats.youtube.queries = querySet.youtube.length
+      searchPromises.push(searchYoutube(querySet.youtube, {
+        include_transcripts: options.include_youtube_transcripts,
+      }))
+    }
+    if (enabledSources.has("x")) {
+      stats.x.queries = querySet.x.length
+      searchPromises.push(searchX(querySet.x))
+    }
+    if (enabledSources.has("web_extract") && querySet.urls.length > 0) {
+      stats.web_extract.queries = querySet.urls.length
+      searchPromises.push(extractWebPages(querySet.urls))
     }
 
     const searchResults = await Promise.allSettled(searchPromises)
@@ -193,6 +271,11 @@ export async function runResearch(
       else if (r.source === "arxiv") stats.arxiv.results++
       else if (r.source === "pubmed") stats.pubmed.results++
       else if (r.source === "tushare") stats.tushare.results++
+      else if (r.source === "reddit") stats.reddit.results++
+      else if (r.source === "youtube") stats.youtube.results++
+      else if (r.source === "youtube_transcript") stats.youtube_transcript.results++
+      else if (r.source === "x") stats.x.results++
+      else if (r.source === "web_extract") stats.web_extract.results++
     }
 
     let dedupedResults = dedup(allResults)

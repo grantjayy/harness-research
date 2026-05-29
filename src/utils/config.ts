@@ -71,6 +71,8 @@ export function getKeyStatus(): Record<string, boolean> {
     BRAVE_API_KEY: !!process.env.BRAVE_API_KEY,
     KIMI_API_KEY: !!process.env.KIMI_API_KEY,
     OPENROUTER_API_KEY: !!process.env.OPENROUTER_API_KEY,
+    XAI_API_KEY: !!process.env.XAI_API_KEY,
+    YOUTUBE_API_KEY: !!(process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY),
     TUSHARE_TOKEN: !!process.env.TUSHARE_TOKEN,
     NCBI_API_KEY: !!process.env.NCBI_API_KEY,
   }

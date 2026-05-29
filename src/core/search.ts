@@ -1,6 +1,7 @@
 // Harness Research MCP Server — Multi-source Search Engine
 // 5 data sources: Tavily, Brave, arXiv, PubMed, Tushare
 
+import * as cheerio from "cheerio"
 import type { SearchResult } from "../utils/types.js"
 import { sleep } from "../utils/json.js"
 import { SEARCH_TIMEOUT } from "../utils/config.js"
@@ -257,6 +258,274 @@ export async function searchTushare(financeContext: any): Promise<SearchResult[]
       } catch {
         // Silent fail
       }
+    }
+  }
+  return results
+}
+
+export interface SourceSearchOptions {
+  limit?: number
+  sort?: "relevance" | "hot" | "top" | "new" | "comments"
+  time_filter?: "hour" | "day" | "week" | "month" | "year" | "all"
+  subreddit?: string
+  include_transcripts?: boolean
+}
+
+function limitPerQuery(options?: SourceSearchOptions, fallback = 5): number {
+  const n = Number(options?.limit || fallback)
+  return Number.isFinite(n) && n > 0 ? Math.min(Math.floor(n), 25) : fallback
+}
+
+function compactText(text: string, max = 1000): string {
+  return text.replace(/\s+/g, " ").trim().slice(0, max)
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+}
+
+export async function searchReddit(
+  keywords: string[],
+  options: SourceSearchOptions = {},
+): Promise<SearchResult[]> {
+  const results: SearchResult[] = []
+  const limit = limitPerQuery(options)
+
+  for (const kw of keywords.slice(0, 4)) {
+    try {
+      const params = new URLSearchParams({
+        q: kw,
+        limit: String(limit),
+        sort: options.sort || "relevance",
+        t: options.time_filter || "year",
+        raw_json: "1",
+      })
+      const base = options.subreddit
+        ? `https://www.reddit.com/r/${encodeURIComponent(options.subreddit)}/search.json`
+        : "https://www.reddit.com/search.json"
+      const resp = await fetch(`${base}?${params}`, {
+        headers: { "User-Agent": "harness-research-mcp/2.0" },
+        signal: AbortSignal.timeout(SEARCH_TIMEOUT),
+      })
+      if (!resp.ok) continue
+      const data = (await resp.json()) as any
+      for (const child of data.data?.children || []) {
+        const post = child.data || {}
+        const permalink = post.permalink || ""
+        const url = permalink.startsWith("http") ? permalink : `https://www.reddit.com${permalink}`
+        const text = compactText(post.selftext || post.url || "", 650)
+        results.push({
+          title: post.title || "Reddit result",
+          url,
+          snippet: compactText(
+            `r/${post.subreddit || "unknown"} | score: ${post.score ?? "n/a"} | comments: ${post.num_comments ?? "n/a"}. ${text}`,
+            900,
+          ),
+          source: "reddit",
+          published_date: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : "",
+          structured_data: {
+            subreddit: post.subreddit,
+            score: post.score,
+            comments: post.num_comments,
+            author: post.author,
+          },
+        })
+      }
+      await sleep(250)
+    } catch {
+      // Public Reddit JSON can rate-limit or block; degrade silently like other sources.
+    }
+  }
+
+  return results
+}
+
+export async function readRedditPost(urlOrId: string): Promise<SearchResult[]> {
+  try {
+    const url = urlOrId.startsWith("http")
+      ? `${urlOrId.replace(/\/?$/, "")}.json?raw_json=1`
+      : `https://www.reddit.com/comments/${encodeURIComponent(urlOrId)}.json?raw_json=1`
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "harness-research-mcp/2.0" },
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT),
+    })
+    if (!resp.ok) return []
+    const data = (await resp.json()) as any[]
+    const post = data?.[0]?.data?.children?.[0]?.data
+    if (!post) return []
+    const comments = (data?.[1]?.data?.children || [])
+      .map((c: any) => c.data?.body)
+      .filter(Boolean)
+      .slice(0, 20)
+      .join("\n\n")
+    return [{
+      title: post.title || "Reddit post",
+      url: post.permalink?.startsWith("http") ? post.permalink : `https://www.reddit.com${post.permalink || ""}`,
+      snippet: compactText(`${post.selftext || ""}\n\nTop comments:\n${comments}`, 1600),
+      source: "reddit",
+      published_date: post.created_utc ? new Date(post.created_utc * 1000).toISOString() : "",
+      structured_data: { score: post.score, comments: post.num_comments, subreddit: post.subreddit },
+    }]
+  } catch {
+    return []
+  }
+}
+
+export async function searchYoutube(
+  keywords: string[],
+  options: SourceSearchOptions = {},
+): Promise<SearchResult[]> {
+  const apiKey = process.env.YOUTUBE_API_KEY || process.env.YOUTUBE_DATA_API_KEY
+  if (!apiKey) return []
+
+  const results: SearchResult[] = []
+  const limit = limitPerQuery(options)
+  for (const kw of keywords.slice(0, 4)) {
+    try {
+      const params = new URLSearchParams({
+        part: "snippet",
+        type: "video",
+        q: kw,
+        maxResults: String(limit),
+        order: "relevance",
+        key: apiKey,
+      })
+      const resp = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`, {
+        signal: AbortSignal.timeout(SEARCH_TIMEOUT),
+      })
+      if (!resp.ok) continue
+      const data = (await resp.json()) as any
+      for (const item of data.items || []) {
+        const videoId = item.id?.videoId
+        if (!videoId) continue
+        const snippet = item.snippet || {}
+        const transcript = options.include_transcripts ? await fetchYoutubeTranscript(videoId) : ""
+        results.push({
+          title: snippet.title || "YouTube video",
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          snippet: compactText(
+            `Channel: ${snippet.channelTitle || "unknown"}. ${snippet.description || ""}${transcript ? ` Transcript: ${transcript}` : ""}`,
+            transcript ? 1800 : 900,
+          ),
+          source: transcript ? "youtube_transcript" : "youtube",
+          published_date: snippet.publishedAt || "",
+          structured_data: { video_id: videoId, channel: snippet.channelTitle, transcript_available: !!transcript },
+        })
+      }
+      await sleep(250)
+    } catch {
+      // Silent fail
+    }
+  }
+  return results
+}
+
+export async function fetchYoutubeTranscript(videoIdOrUrl: string): Promise<string> {
+  const videoId = extractYoutubeVideoId(videoIdOrUrl)
+  if (!videoId) return ""
+  try {
+    const watchResp = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, {
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT),
+    })
+    if (!watchResp.ok) return ""
+    const watchHtml = await watchResp.text()
+    const match = watchHtml.match(/"captionTracks":(\[.*?\]),"audioTracks"/)
+    if (!match) return ""
+    const tracks = JSON.parse(match[1].replace(/\\u0026/g, "&")) as Array<{ baseUrl: string; languageCode?: string }>
+    const track = tracks.find(t => t.languageCode?.startsWith("en")) || tracks[0]
+    if (!track?.baseUrl) return ""
+    const transcriptResp = await fetch(track.baseUrl, { signal: AbortSignal.timeout(SEARCH_TIMEOUT) })
+    if (!transcriptResp.ok) return ""
+    const xml = await transcriptResp.text()
+    const pieces = Array.from(xml.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)).map(m => decodeHtml(m[1]))
+    return compactText(pieces.join(" "), 6000)
+  } catch {
+    return ""
+  }
+}
+
+function extractYoutubeVideoId(value: string): string {
+  const trimmed = value.trim()
+  if (/^[A-Za-z0-9_-]{11}$/.test(trimmed)) return trimmed
+  try {
+    const url = new URL(trimmed)
+    if (url.hostname.includes("youtu.be")) return url.pathname.slice(1)
+    return url.searchParams.get("v") || ""
+  } catch {
+    return ""
+  }
+}
+
+export async function searchX(
+  keywords: string[],
+  options: SourceSearchOptions = {},
+): Promise<SearchResult[]> {
+  const apiKey = process.env.XAI_API_KEY
+  if (!apiKey) return []
+  const results: SearchResult[] = []
+
+  for (const kw of keywords.slice(0, limitPerQuery(options, 2))) {
+    try {
+      const prompt = `Search X deeply for posts, threads, replies, demos, screenshots, and practitioner discussions about: ${kw}.
+
+Research objective: collect concrete, recent social evidence for a deep research report.
+
+Return common patterns, named tools/accounts, specific implementation details, complaints/failure modes, disagreements, concrete post URLs when possible, and claims that need corroboration. Use semantic search; do not treat this as strict Boolean syntax.`
+      const resp = await fetch("https://api.x.ai/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: process.env.XAI_SEARCH_MODEL || "grok-4-fast-reasoning",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.2,
+          search_parameters: { mode: "auto", sources: [{ type: "x" }] },
+        }),
+        signal: AbortSignal.timeout(60_000),
+      })
+      if (!resp.ok) continue
+      const data = (await resp.json()) as any
+      const content = data.choices?.[0]?.message?.content || ""
+      if (!content) continue
+      results.push({
+        title: `X research synthesis: ${kw}`,
+        url: "https://x.com/search",
+        snippet: compactText(content, 1800),
+        source: "x",
+        published_date: new Date().toISOString(),
+        structured_data: { query: kw },
+      })
+    } catch {
+      // Silent fail
+    }
+  }
+  return results
+}
+
+export async function extractWebPages(urls: string[]): Promise<SearchResult[]> {
+  const results: SearchResult[] = []
+  for (const url of urls.slice(0, 10)) {
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(SEARCH_TIMEOUT) })
+      if (!resp.ok) continue
+      const html = await resp.text()
+      const $ = cheerio.load(html)
+      $("script, style, noscript, svg").remove()
+      const title = compactText($("title").first().text() || $("h1").first().text() || url, 160)
+      const body = compactText($("body").text(), 2200)
+      results.push({
+        title,
+        url,
+        snippet: body,
+        source: "web_extract",
+        published_date: "",
+      })
+    } catch {
+      // Silent fail
     }
   }
   return results

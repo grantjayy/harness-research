@@ -40,6 +40,8 @@ export async function runDoctor(): Promise<void> {
   console.log(`    BRAVE_API_KEY:      ${keys.BRAVE_API_KEY ? "✅ set" : "⬜ not set"}`)
   console.log(`    KIMI_API_KEY:       ${keys.KIMI_API_KEY ? "✅ set" : "⬜ not set"}`)
   console.log(`    OPENROUTER_API_KEY: ${keys.OPENROUTER_API_KEY ? "✅ set" : "⬜ not set"}`)
+  console.log(`    XAI_API_KEY:        ${keys.XAI_API_KEY ? "✅ set" : "⬜ optional (X search)"}`)
+  console.log(`    YOUTUBE_API_KEY:    ${keys.YOUTUBE_API_KEY ? "✅ set" : "⬜ optional (YouTube search)"}`)
   console.log(`    TUSHARE_TOKEN:      ${keys.TUSHARE_TOKEN ? "✅ set" : "⬜ optional"}`)
   console.log(`    NCBI_API_KEY:       ${keys.NCBI_API_KEY ? "✅ set" : "⬜ optional"}`)
 

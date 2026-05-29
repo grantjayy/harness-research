@@ -96,6 +96,12 @@ export async function setupWizard(): Promise<void> {
   const ncbiKey = await prompt.ask("  NCBI API Key (https://ncbiinsights.ncbi.nlm.nih.gov — PubMed): ")
   if (ncbiKey) envVars.NCBI_API_KEY = ncbiKey
 
+  const youtubeKey = await prompt.ask("  YouTube Data API Key (YouTube search, transcripts use public captions when available): ")
+  if (youtubeKey) envVars.YOUTUBE_API_KEY = youtubeKey
+
+  const xaiKey = await prompt.ask("  xAI API Key (X/Twitter search synthesis): ")
+  if (xaiKey) envVars.XAI_API_KEY = xaiKey
+
   // Step 3: Write config
   console.log("")
   console.log("── Step 3: Saving Configuration ──")

@@ -5,7 +5,17 @@ export interface SearchResult {
   title: string
   url: string
   snippet: string
-  source: "tavily" | "brave" | "arxiv" | "pubmed" | "tushare"
+  source:
+    | "tavily"
+    | "brave"
+    | "arxiv"
+    | "pubmed"
+    | "tushare"
+    | "reddit"
+    | "youtube"
+    | "youtube_transcript"
+    | "x"
+    | "web_extract"
   published_date: string
   structured_data?: any
 }
@@ -73,6 +83,11 @@ export interface ResearchStats {
   arxiv: { queries: number; results: number }
   pubmed: { queries: number; results: number }
   tushare: { queries: number; results: number }
+  reddit: { queries: number; results: number }
+  youtube: { queries: number; results: number }
+  youtube_transcript: { queries: number; results: number }
+  x: { queries: number; results: number }
+  web_extract: { queries: number; results: number }
   totalSources: number
   rejectedSources: number
   tierDistribution: Record<number, number>

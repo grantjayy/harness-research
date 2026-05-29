@@ -2,6 +2,8 @@
 
 # Harness Research MCP
 
+> Local fork note: Grant's Hermes-ready local setup docs are in [`docs/HERMES_LOCAL.md`](./docs/HERMES_LOCAL.md). This fork is meant to run locally from `dist/index.js`; publishing is not required.
+
 **Give any AI Agent professional-grade deep research capabilities.**
 
 An MCP (Model Context Protocol) server that performs real-time deep research across 5 data sources, evaluates source credibility with the CRAAP framework, cross-verifies findings, and generates professional reports — all driven by affordable models like Kimi K2.5.
