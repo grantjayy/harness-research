@@ -6,6 +6,10 @@
 
 {{TOPIC}}
 
+## Language requirement
+
+Write all generated plan text in the same language as the research topic. If the topic is in English, all section titles, purposes, core question text, keywords, and narrative strings must be in English. Do not default to Chinese unless the topic is Chinese.
+
 ## 输出格式
 
 严格按以下 JSON 格式输出，不要输出任何其他内容：

@@ -18,6 +18,10 @@
 
 {{COUNTERINTUITIVE_FINDINGS}}
 
+## Language requirement
+
+Write the executive summary in the same language as the research topic. If the topic is in English, all headings, table captions, confidence labels, prose, and HTML content must be in English. Do not default to Chinese unless the topic is Chinese.
+
 ## 写作规范
 
 1. SCR 框架：Situation → Complication → Resolution

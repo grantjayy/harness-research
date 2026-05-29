@@ -24,6 +24,10 @@
 
 {{VERIFICATION}}
 
+## Language requirement
+
+Write the entire section in the same language as the research topic. If the topic is in English, all headings, table captions, confidence labels, prose, analysis strings, and HTML content must be in English. Do not default to Chinese unless the topic is Chinese.
+
 ## 输出格式
 
 输出纯 JSON：
