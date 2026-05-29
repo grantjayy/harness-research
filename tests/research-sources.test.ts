@@ -131,14 +131,14 @@ test("searchX sends a deep-search prompt to xAI when XAI_API_KEY is set", async 
   process.env.XAI_API_KEY = "test-xai-key"
 
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    assert.equal(String(input), "https://api.x.ai/v1/chat/completions")
+    assert.equal(String(input), "https://api.x.ai/v1/responses")
     const body = JSON.parse(String(init?.body))
-    assert.match(body.messages[0].content, /Search X deeply/)
-    assert.match(body.messages[0].content, /agent memory/)
+    assert.match(body.input[0].content, /Search X deeply/)
+    assert.match(body.input[0].content, /agent memory/)
+    assert.deepEqual(body.tools, [{ type: "x_search" }])
     return new Response(JSON.stringify({
-      choices: [
-        { message: { content: "Found posts about agent memory workflows and implementation caveats." } },
-      ],
+      output_text: "Found posts about agent memory workflows and implementation caveats.",
+      citations: ["https://x.com/example/status/1"],
     }), { status: 200 })
   }) as typeof fetch
 

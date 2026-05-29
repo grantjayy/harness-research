@@ -60,7 +60,7 @@ This call waits for the research run to finish. Configure the MCP client timeout
       return {
         content: [{
           type: "text" as const,
-          text: "Missing required API keys. Need at least one search key (TAVILY_API_KEY or BRAVE_API_KEY) and OPENROUTER_API_KEY for Kimi through OpenRouter in ~/.harness-research/.env.",
+          text: "Missing required API key. Need OPENROUTER_API_KEY for Kimi through OpenRouter in ~/.harness-research/.env or ~/.hermes/.env.",
         }],
       }
     }

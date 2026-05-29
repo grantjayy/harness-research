@@ -35,7 +35,12 @@ export function loadEnv(): void {
   // Priority 1: user config dir
   const envPaths = [ENV_PATH]
 
-  // Priority 2: legacy OpenCode location (for backward compat)
+  // Priority 2: Hermes Agent's standard secret store. This local fork runs
+  // behind Grant's lazy-mcp/Hermes setup, so reuse already-configured Hermes
+  // API keys instead of requiring duplicate secrets in ~/.harness-research/.env.
+  envPaths.push(path.join(process.env.HOME || "", ".hermes/.env"))
+
+  // Priority 3: legacy OpenCode location (for backward compat)
   const legacyPath = path.join(
     process.env.HOME || "",
     ".config/opencode/research-resources/.env"
@@ -55,7 +60,8 @@ export function loadEnv(): void {
         process.env[key] = value
       }
     }
-    break // Only load the first found .env
+    // Continue through lower-priority env files to fill missing keys without
+    // overwriting values loaded from higher-priority files.
   }
 }
 
@@ -77,12 +83,10 @@ export function getKeyStatus(): Record<string, boolean> {
   }
 }
 
-/** Check if at least one search key and the OpenRouter research-model key are available */
+/** Check if the fixed OpenRouter research-model key is available */
 export function hasMinimalKeys(): boolean {
   const keys = getKeyStatus()
-  const hasSearch = keys.TAVILY_API_KEY || keys.BRAVE_API_KEY
-  const hasLLM = keys.OPENROUTER_API_KEY
-  return hasSearch && hasLLM
+  return keys.OPENROUTER_API_KEY
 }
 
 /** Check if puppeteer (PDF) is available */

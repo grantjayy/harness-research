@@ -74,7 +74,7 @@ Restart Hermes/gateway only when Grant approves or does it himself.
 
 ## Credentials
 
-The server loads credentials from `~/.harness-research/.env` without needing them in Hermes model context. Use these names:
+The server loads credentials from `~/.harness-research/.env` first, then fills any missing keys from Hermes Agent's standard `~/.hermes/.env`, without exposing secret values to the model context. Use these names:
 
 ```bash
 TAVILY_API_KEY=...
@@ -86,12 +86,12 @@ TUSHARE_TOKEN=...
 NCBI_API_KEY=...
 ```
 
-Minimum for full research reports: one search key (`TAVILY_API_KEY` or `BRAVE_API_KEY`) and `OPENROUTER_API_KEY`. The MCP calls Kimi through OpenRouter using model `moonshotai/kimi-k2.6`; direct `KIMI_API_KEY` is not used by the deep research tool.
+Minimum for full research reports: `OPENROUTER_API_KEY`. The MCP calls Kimi through OpenRouter using model `moonshotai/kimi-k2.6`; direct `KIMI_API_KEY` is not used by the deep research tool. Web search keys (`TAVILY_API_KEY` or `BRAVE_API_KEY`) are optional but recommended; without them the run relies on the other available internal sources such as Reddit, YouTube, X, academic sources, and direct URLs.
 
 Optional expanded-source keys:
 
-- `YOUTUBE_API_KEY` enables YouTube search. Transcript fetch uses public captions when available.
-- `XAI_API_KEY` enables X/Twitter search synthesis.
+- `YOUTUBE_API_KEY` or `YOUTUBE_DATA_API_KEY` enables YouTube search. Transcript fetch uses public captions when available.
+- `XAI_API_KEY` enables X/Twitter search synthesis. If it is absent, the local fork falls back to Hermes-managed xAI Grok OAuth / SuperGrok credentials from the Hermes auth store.
 - Reddit search uses Reddit public JSON endpoints and does not require OAuth.
 
 ## Tool contract

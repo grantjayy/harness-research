@@ -33,7 +33,6 @@ export async function runDoctor(): Promise<void> {
   console.log("  API Keys:")
   const keys = getKeyStatus()
 
-  const hasSearch = keys.TAVILY_API_KEY || keys.BRAVE_API_KEY
   const hasLLM = keys.OPENROUTER_API_KEY
 
   console.log(`    TAVILY_API_KEY:     ${keys.TAVILY_API_KEY ? "✅ set" : "⬜ not set"}`)
@@ -44,9 +43,8 @@ export async function runDoctor(): Promise<void> {
   console.log(`    TUSHARE_TOKEN:      ${keys.TUSHARE_TOKEN ? "✅ set" : "⬜ optional"}`)
   console.log(`    NCBI_API_KEY:       ${keys.NCBI_API_KEY ? "✅ set" : "⬜ optional"}`)
 
-  if (!hasSearch) {
-    console.log("    ❌ Need at least one search key (TAVILY or BRAVE)")
-    issues++
+  if (!(keys.TAVILY_API_KEY || keys.BRAVE_API_KEY)) {
+    console.log("    ⚠ Optional: add TAVILY_API_KEY or BRAVE_API_KEY for stronger general web search")
   }
   if (!hasLLM) {
     console.log("    ❌ Need OPENROUTER_API_KEY for Kimi K2.6 through OpenRouter")

@@ -2,6 +2,7 @@
 // 5 data sources: Tavily, Brave, arXiv, PubMed, Tushare
 
 import * as cheerio from "cheerio"
+import { execFileSync } from "node:child_process"
 import type { SearchResult } from "../utils/types.js"
 import { sleep } from "../utils/json.js"
 import { SEARCH_TIMEOUT } from "../utils/config.js"
@@ -465,8 +466,8 @@ export async function searchX(
   keywords: string[],
   options: SourceSearchOptions = {},
 ): Promise<SearchResult[]> {
-  const apiKey = process.env.XAI_API_KEY
-  if (!apiKey) return []
+  const creds = resolveXaiCredentials()
+  if (!creds?.apiKey) return []
   const results: SearchResult[] = []
 
   for (const kw of keywords.slice(0, limitPerQuery(options, 2))) {
@@ -476,20 +477,20 @@ export async function searchX(
 Research objective: collect concrete, recent social evidence for a deep research report.
 
 Return common patterns, named tools/accounts, specific implementation details, complaints/failure modes, disagreements, concrete post URLs when possible, and claims that need corroboration. Use semantic search; do not treat this as strict Boolean syntax.`
-      const resp = await fetch("https://api.x.ai/v1/chat/completions", {
+      const resp = await fetch(`${creds.baseUrl.replace(/\/$/, "")}/responses`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${creds.apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: process.env.XAI_SEARCH_MODEL || "grok-4-fast-reasoning",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.2,
-          search_parameters: { mode: "auto", sources: [{ type: "x" }] },
+          model: process.env.XAI_SEARCH_MODEL || "grok-4.20-reasoning",
+          input: [{ role: "user", content: prompt }],
+          tools: [{ type: "x_search" }],
+          store: false,
         }),
         signal: AbortSignal.timeout(60_000),
       })
       if (!resp.ok) continue
       const data = (await resp.json()) as any
-      const content = data.choices?.[0]?.message?.content || ""
+      const content = extractXResponseText(data) || JSON.stringify(data).slice(0, 1800)
       if (!content) continue
       results.push({
         title: `X research synthesis: ${kw}`,
@@ -497,13 +498,64 @@ Return common patterns, named tools/accounts, specific implementation details, c
         snippet: compactText(content, 1800),
         source: "x",
         published_date: new Date().toISOString(),
-        structured_data: { query: kw },
+        structured_data: { query: kw, credential_source: creds.source, citations: data.citations || [] },
       })
     } catch {
       // Silent fail
     }
   }
   return results
+}
+
+function resolveXaiCredentials(): { apiKey: string; baseUrl: string; source: string } | null {
+  const apiKey = process.env.XAI_API_KEY || ""
+  if (apiKey) return { apiKey, baseUrl: process.env.XAI_BASE_URL || "https://api.x.ai/v1", source: "xai" }
+
+  // Fall back to Hermes-managed SuperGrok OAuth when Grant's Hermes setup uses
+  // OAuth instead of a raw XAI_API_KEY.
+  try {
+    const hermesAgentPath = `${process.env.HOME || ""}/.hermes/hermes-agent`
+    const output = execFileSync("python3", ["-c", `
+import json, os, sys
+sys.path.insert(0, os.path.expanduser("~/.hermes/hermes-agent"))
+from tools.xai_http import resolve_xai_http_credentials
+creds = resolve_xai_http_credentials()
+print(json.dumps({
+    "apiKey": creds.get("api_key", ""),
+    "baseUrl": creds.get("base_url", "https://api.x.ai/v1"),
+    "source": creds.get("provider", "xai"),
+}))
+`], {
+      env: { ...process.env, PYTHONPATH: hermesAgentPath },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 20_000,
+    }).trim()
+    const parsed = JSON.parse(output)
+    if (parsed?.apiKey) {
+      return { apiKey: parsed.apiKey, baseUrl: parsed.baseUrl || "https://api.x.ai/v1", source: parsed.source || "xai" }
+    }
+  } catch {
+    // Fall through to XAI_API_KEY.
+  }
+  return null
+}
+
+function extractXResponseText(data: any): string {
+  if (typeof data?.output_text === "string") return data.output_text
+  const chunks: string[] = []
+  const visit = (value: any) => {
+    if (!value) return
+    if (typeof value === "string") return
+    if (Array.isArray(value)) return value.forEach(visit)
+    if (typeof value !== "object") return
+    if (typeof value.text === "string") chunks.push(value.text)
+    if (typeof value.content === "string") chunks.push(value.content)
+    if (Array.isArray(value.content)) visit(value.content)
+    if (Array.isArray(value.output)) visit(value.output)
+  }
+  visit(data?.output)
+  return chunks.join("\n").trim()
 }
 
 export async function extractWebPages(urls: string[]): Promise<SearchResult[]> {
