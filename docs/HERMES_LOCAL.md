@@ -136,6 +136,6 @@ For a quick live smoke test, constrain the report while still exercising the ful
 
 ## Notes
 
-- The server degrades gracefully when an optional source key is missing. For example, no `XAI_API_KEY` means X source returns no results, while other sources still run.
+- The server degrades gracefully when an optional source key is missing. For X/Twitter, a raw `XAI_API_KEY` is optional in Grant's Hermes setup because the local fork can fall back to Hermes-managed xAI Grok OAuth / SuperGrok credentials. If neither credential path is available, X returns no results while other sources still run.
 - Output files are written to the requested `output_dir` or the MCP process working directory.
 - Search helpers remain internal implementation details. Do not expose them as top-level MCP tools unless Grant changes the product direction.
