@@ -45,6 +45,8 @@ This call waits for the research run to finish. Configure the MCP client timeout
     reddit_sort: z.enum(["relevance", "hot", "top", "new", "comments"]).optional().describe("Internal Reddit sort. Default: relevance."),
     reddit_time_filter: z.enum(["hour", "day", "week", "month", "year", "all"]).optional().describe("Internal Reddit time filter. Default: year."),
     include_youtube_transcripts: z.boolean().optional().describe("Fetch available YouTube captions/transcripts and include them as internal source text."),
+    max_sections: z.number().int().positive().max(6).optional().describe("Optional cap on generated report sections. Useful for smoke tests or concise research runs."),
+    max_sources: z.number().int().positive().max(50).optional().describe("Optional cap on deduplicated sources passed into evaluation and synthesis."),
   },
   async (args) => {
     if (!isSetupComplete() && !hasMinimalKeys()) {
@@ -78,6 +80,8 @@ This call waits for the research run to finish. Configure the MCP client timeout
       reddit_sort: args.reddit_sort,
       reddit_time_filter: args.reddit_time_filter,
       include_youtube_transcripts: args.include_youtube_transcripts,
+      max_sections: args.max_sections,
+      max_sources: args.max_sources,
     })
 
     const outputs = Object.entries(result.outputs)

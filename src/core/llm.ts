@@ -20,7 +20,8 @@ export function createLLMConfig(): LLMConfig {
 export async function callLLM(
   config: LLMConfig,
   prompt: string,
-  temperature: number = 0.3
+  temperature: number = 0.3,
+  maxTokens: number = 4096,
 ): Promise<string> {
   const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`
 
@@ -40,7 +41,8 @@ export async function callLLM(
           model: config.model,
           messages: [{ role: "user", content: prompt }],
           temperature,
-          max_tokens: 8192,
+          max_tokens: maxTokens,
+          reasoning: { effort: "minimal", exclude: true },
         }),
         signal: AbortSignal.timeout(LLM_TIMEOUT),
       })
@@ -59,12 +61,16 @@ export async function callLLM(
       const data = (await resp.json()) as any
       return data.choices?.[0]?.message?.content || ""
     } catch (e: any) {
-      if (attempt === 3) throw e
-      if (e.name === "TimeoutError") {
-        await sleep(5000)
-        continue
-      }
-      throw e
+      const message = String(e?.message || e || "")
+      const transient =
+        e?.name === "TimeoutError" ||
+        e?.name === "AbortError" ||
+        /terminated|fetch failed|ECONNRESET|ETIMEDOUT|UND_ERR|socket|network/i.test(message)
+
+      if (attempt === 3 || !transient) throw e
+
+      await sleep(attempt * 5000)
+      continue
     }
   }
   throw new Error("LLM call failed after 3 retries")

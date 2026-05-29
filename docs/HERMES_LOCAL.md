@@ -115,7 +115,22 @@ Important: configure lazy-mcp / MCP client timeout high enough for full research
   "topic": "Current best practices for AI agent memory systems",
   "sources": ["tavily", "brave", "arxiv", "reddit", "youtube", "x", "web_extract"],
   "include_youtube_transcripts": true,
-  "formats": ["html", "docx"]
+  "formats": ["html", "docx"],
+  "max_sections": 3,
+  "max_sources": 25
+}
+```
+
+For a quick live smoke test, constrain the report while still exercising the full synchronous MCP path:
+
+```json
+{
+  "topic": "Smoke test: is Tavily useful for MCP deep research agents?",
+  "sources": ["tavily"],
+  "web_queries": ["Tavily MCP deep research agents source integration"],
+  "formats": ["markdown"],
+  "max_sections": 1,
+  "max_sources": 3
 }
 ```
 

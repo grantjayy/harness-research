@@ -31,6 +31,24 @@ function matchSources(
     .slice(0, 10)
 }
 
+function fallbackSectionHtml(
+  section: ResearchPlan["sections"][0],
+  sources: EvaluatedSource[],
+  reason: string,
+): string {
+  const bullets = sources.slice(0, 5).map(s => {
+    const fact = s.key_facts?.[0] || s.snippet || "Relevant source for this section."
+    return `<li><a href="${escapeHtml(s.url)}">${escapeHtml(s.title || s.url)}</a>: ${escapeHtml(fact.slice(0, 280))}</li>`
+  }).join("\n")
+
+  return `<h2>${escapeHtml(section.title)}</h2>
+<p>${escapeHtml(section.purpose)}</p>
+<p><em>LLM prose generation fallback used: ${escapeHtml(reason)}. The evidence below comes from sources that passed source evaluation.</em></p>
+<ul>
+${bullets || "<li>No matching evaluated sources were available for this section.</li>"}
+</ul>`
+}
+
 /** Write all sections in parallel */
 export async function writeSections(
   plan: ResearchPlan,
@@ -43,7 +61,8 @@ export async function writeSections(
 
   const sectionPromises = plan.sections.map(async (section) => {
     const matched = matchSources(section, sources)
-    const materialsText = matched
+    const sectionSources = matched.length > 0 ? matched : sources.slice(0, 5)
+    const materialsText = sectionSources
       .map(
         s =>
           `[T${s.tier}] ${s.title}\nURL: ${s.url}\nSnippet: ${s.snippet.slice(0, 400)}\nKey facts: ${s.key_facts.join("; ")}`,
@@ -61,7 +80,7 @@ export async function writeSections(
     })
 
     try {
-      const raw = await callLLM(llmConfig, prompt, 0.4)
+      const raw = await callLLM(llmConfig, prompt, 0.4, 3500)
       const parsed = safeJsonParse<{ analysis: any; html: string }>(raw, null as any)
       if (parsed && parsed.html) {
         return {
@@ -77,12 +96,12 @@ export async function writeSections(
         }
       }
       return {
-        html: `<h2>${escapeHtml(section.title)}</h2><p>Section generation failed.</p>`,
+        html: fallbackSectionHtml(section, sectionSources, "model response did not contain parseable HTML"),
         analysis: { core_argument: section.title, supporting_points: [] },
       }
     } catch (e: any) {
       return {
-        html: `<h2>${escapeHtml(section.title)}</h2><p>Error: ${escapeHtml(e.message || "unknown")}</p>`,
+        html: fallbackSectionHtml(section, sectionSources, e.message || "unknown error"),
         analysis: { core_argument: section.title, supporting_points: [] },
       }
     }
@@ -131,7 +150,7 @@ export async function writeExecSummary(
   })
 
   try {
-    const summaryRaw = await callLLM(llmConfig, summaryPrompt, 0.3)
+    const summaryRaw = await callLLM(llmConfig, summaryPrompt, 0.3, 2000)
     return extractHtml(summaryRaw)
   } catch {
     return `<h2>Executive Summary</h2><p>Summary generation failed.</p>`

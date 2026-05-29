@@ -70,6 +70,8 @@ export function startResearchBackground(
     reddit_sort?: "relevance" | "hot" | "top" | "new" | "comments"
     reddit_time_filter?: "hour" | "day" | "week" | "month" | "year" | "all"
     include_youtube_transcripts?: boolean
+    max_sections?: number
+    max_sources?: number
   },
 ): string {
   const taskId = `research-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -112,6 +114,8 @@ export async function runResearch(
     reddit_sort?: "relevance" | "hot" | "top" | "new" | "comments"
     reddit_time_filter?: "hour" | "day" | "week" | "month" | "year" | "all"
     include_youtube_transcripts?: boolean
+    max_sections?: number
+    max_sources?: number
   },
   onProgress?: ProgressCallback,
   externalTaskId?: string,
@@ -125,6 +129,7 @@ export async function runResearch(
   const startTime = Date.now()
   const llmConfig = createLLMConfig()
   const outputDir = options.outputDir || process.cwd()
+  fs.mkdirSync(outputDir, { recursive: true })
   const requestedFormats = options.formats || ["html", "docx"]
 
   // Reuse pre-registered task if exists (from startResearchBackground), otherwise create new
@@ -141,6 +146,9 @@ export async function runResearch(
   const report = (step: string, progress: number, detail: string) => {
     task.step = step
     task.progress = progress
+    if (process.env.DEEP_RESEARCH_DEBUG === "1") {
+      console.error(`[deep-research] ${step} ${progress}% ${detail}`)
+    }
     onProgress?.(step, progress, detail)
   }
 
@@ -172,11 +180,15 @@ export async function runResearch(
     report("Step 1/6", 5, "Generating research plan...")
 
     const planPrompt = loadPrompt("plan", { TOPIC: topic })
-    const planRaw = await callLLM(llmConfig, planPrompt, 0.4)
+    const planRaw = await callLLM(llmConfig, planPrompt, 0.4, 6000)
     const plan = safeJsonParse<ResearchPlan>(planRaw, null as any)
 
     if (!plan || !plan.sections || plan.sections.length === 0) {
       throw new Error(`Research plan generation failed. Raw output: ${planRaw.slice(0, 300)}`)
+    }
+
+    if (options.max_sections && options.max_sections > 0) {
+      plan.sections = plan.sections.slice(0, options.max_sections)
     }
 
     const elapsed1 = Math.round((Date.now() - startTime) / 1000)
@@ -275,8 +287,11 @@ export async function runResearch(
     }
 
     let dedupedResults = dedup(allResults)
-    if (dedupedResults.length > MAX_SOURCES) {
-      dedupedResults = dedupedResults.slice(0, MAX_SOURCES)
+    const sourceLimit = options.max_sources && options.max_sources > 0
+      ? Math.min(options.max_sources, MAX_SOURCES)
+      : MAX_SOURCES
+    if (dedupedResults.length > sourceLimit) {
+      dedupedResults = dedupedResults.slice(0, sourceLimit)
     }
 
     const elapsed2 = Math.round((Date.now() - startTime) / 1000)
