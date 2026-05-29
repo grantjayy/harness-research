@@ -6,9 +6,9 @@
 
 **Give any AI Agent professional-grade deep research capabilities.**
 
-An MCP (Model Context Protocol) server that performs real-time deep research across 5 data sources, evaluates source credibility with the CRAAP framework, cross-verifies findings, and generates professional reports — all driven by affordable models like Kimi K2.5.
+An MCP (Model Context Protocol) server that performs real-time deep research across 5 data sources, evaluates source credibility with the CRAAP framework, cross-verifies findings, and generates professional reports — all driven by affordable models like Kimi K2.6.
 
-> A full deep research report takes ~10 minutes and can be driven by Kimi K2.5 at ~$0.01/run.
+> A full deep research report takes ~10 minutes and can be driven by Kimi K2.6 at ~$0.01/run.
 
 ---
 
@@ -55,7 +55,7 @@ An MCP (Model Context Protocol) server that performs real-time deep research acr
 > **Synchronous workflow:**
 > `deep_research` waits for the full research run to finish and returns output artifact paths, source stats, and summary. Set the lazy-mcp timeout to **1200000 ms = 1200 seconds = 20 minutes** for full deep research runs.
 >
-> Internal research model: Kimi K2.5 through OpenRouter (`moonshotai/kimi-k2.5`).
+> Internal research model: Kimi K2.6 through OpenRouter (`moonshotai/kimi-k2.6`).
 > ```json
 > {
 >   "mcpServers": {
@@ -94,7 +94,7 @@ Existing deep research tools (Perplexity Deep Research, ChatGPT Research, Gemini
 | **Source evaluation** | CRAAP framework with 5-dimension scoring + T0-T5 tier classification (530+ domain database) | None |
 | **Cross-verification** | Automatic conflict detection + counterintuitive finding identification | None |
 | **Citations** | Every reference tagged with source tier, credibility score, publication date | Simple URL list or no citations |
-| **LLM requirement** | Kimi K2.5 works great (~$0.01/run) | GPT-4 / Claude ($1-5/run) |
+| **LLM requirement** | Kimi K2.6 works great (~$0.01/run) | GPT-4 / Claude ($1-5/run) |
 | **Output formats** | HTML + DOCX + PDF + Markdown | Plain text |
 | **Integrability** | Standard MCP protocol — works with any Agent | Locked to specific platform |
 | **Open source** | Apache 2.0 | Proprietary |
@@ -145,7 +145,7 @@ npx harness-research-mcp setup
 
 The interactive wizard will guide you through:
 - Configuring search API keys (Tavily or Brave, at least one)
-- Configuring an LLM API key (Kimi K2.5 recommended — cheapest option)
+- Configuring an LLM API key (Kimi K2.6 recommended — cheapest option)
 - Optional: Tushare (Chinese financial data), NCBI (PubMed academic search)
 - Automatic API connectivity test
 
@@ -211,13 +211,13 @@ Harness Research does **not** rely on any LLM's historical knowledge. **All info
 |-----|---------|-----------|--------|------|
 | **TAVILY_API_KEY** | Advanced web search (deep scraping support) | Required (pick one) | [tavily.com](https://tavily.com) | Free 1000 calls/mo |
 | **BRAVE_API_KEY** | Privacy-focused web search | Required (pick one) | [brave.com/search/api](https://brave.com/search/api/) | Free 2000 calls/mo |
-| **OPENROUTER_API_KEY** | LLM reasoning with Kimi K2.5 via OpenRouter (`moonshotai/kimi-k2.5`) | Required | [openrouter.ai](https://openrouter.ai) | Per-model pricing |
+| **OPENROUTER_API_KEY** | LLM reasoning with Kimi K2.6 via OpenRouter (`moonshotai/kimi-k2.6`) | Required | [openrouter.ai](https://openrouter.ai) | Per-model pricing |
 | TUSHARE_TOKEN | Chinese A-share financial data | Optional | [tushare.pro](https://tushare.pro) | Free basic tier |
 | NCBI_API_KEY | PubMed academic paper search | Optional | [ncbi.nlm.nih.gov](https://ncbiinsights.ncbi.nlm.nih.gov/2017/11/02/new-api-keys-for-the-e-utilities/) | Free |
 
 **Minimum: 1 search key + OPENROUTER_API_KEY = 2 keys to get started.**
 
-### Why Kimi K2.5?
+### Why Kimi K2.6?
 
 - **Cost**: ~$0.01 per full research session (vs. GPT-4 at $1-5)
 - **Chinese support**: Native Chinese language, no translation layer needed

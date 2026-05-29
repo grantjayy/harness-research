@@ -38,7 +38,7 @@ export async function runDoctor(): Promise<void> {
 
   console.log(`    TAVILY_API_KEY:     ${keys.TAVILY_API_KEY ? "✅ set" : "⬜ not set"}`)
   console.log(`    BRAVE_API_KEY:      ${keys.BRAVE_API_KEY ? "✅ set" : "⬜ not set"}`)
-  console.log(`    OPENROUTER_API_KEY: ${keys.OPENROUTER_API_KEY ? "✅ set" : "⬜ not set"} (required for moonshotai/kimi-k2.5)`)
+  console.log(`    OPENROUTER_API_KEY: ${keys.OPENROUTER_API_KEY ? "✅ set" : "⬜ not set"} (required for moonshotai/kimi-k2.6)`)
   console.log(`    XAI_API_KEY:        ${keys.XAI_API_KEY ? "✅ set" : "⬜ optional (X search)"}`)
   console.log(`    YOUTUBE_API_KEY:    ${keys.YOUTUBE_API_KEY ? "✅ set" : "⬜ optional (YouTube search)"}`)
   console.log(`    TUSHARE_TOKEN:      ${keys.TUSHARE_TOKEN ? "✅ set" : "⬜ optional"}`)
@@ -49,7 +49,7 @@ export async function runDoctor(): Promise<void> {
     issues++
   }
   if (!hasLLM) {
-    console.log("    ❌ Need OPENROUTER_API_KEY for Kimi K2.5 through OpenRouter")
+    console.log("    ❌ Need OPENROUTER_API_KEY for Kimi K2.6 through OpenRouter")
     issues++
   }
 

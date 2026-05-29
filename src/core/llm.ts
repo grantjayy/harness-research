@@ -4,7 +4,7 @@ import type { LLMConfig } from "../utils/types.js"
 import { sleep } from "../utils/json.js"
 import { LLM_TIMEOUT } from "../utils/config.js"
 
-export const RESEARCH_MODEL = "moonshotai/kimi-k2.5"
+export const RESEARCH_MODEL = "moonshotai/kimi-k2.6"
 
 /** Create the fixed research-model config. */
 export function createLLMConfig(): LLMConfig {

@@ -68,7 +68,7 @@ export async function setupWizard(): Promise<void> {
 
   console.log("")
   console.log("  [RESEARCH MODEL] (required)")
-  console.log("  Kimi K2.5 through OpenRouter: moonshotai/kimi-k2.5")
+  console.log("  Kimi K2.6 through OpenRouter: moonshotai/kimi-k2.6")
   console.log("")
 
   const orKey = await prompt.ask("  OpenRouter API Key (https://openrouter.ai): ")

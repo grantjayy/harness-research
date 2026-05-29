@@ -6,7 +6,7 @@ This fork is intended to run locally from source/build output behind Grant's laz
 
 This MCP is specifically a deep research tool. It is not a generic search MCP and it should not expose standalone search/read/extract tools to Hermes.
 
-The research model is fixed internally: Kimi K2.5 via OpenRouter (`moonshotai/kimi-k2.5`). Hermes should not select arbitrary LLM providers/models for this MCP.
+The research model is fixed internally: Kimi K2.6 via OpenRouter (`moonshotai/kimi-k2.6`). Hermes should not select arbitrary LLM providers/models for this MCP.
 
 Top-level tool exposed by the MCP:
 
@@ -86,7 +86,7 @@ TUSHARE_TOKEN=...
 NCBI_API_KEY=...
 ```
 
-Minimum for full research reports: one search key (`TAVILY_API_KEY` or `BRAVE_API_KEY`) and `OPENROUTER_API_KEY`. The MCP calls Kimi through OpenRouter using model `moonshotai/kimi-k2.5`; direct `KIMI_API_KEY` is not used by the deep research tool.
+Minimum for full research reports: one search key (`TAVILY_API_KEY` or `BRAVE_API_KEY`) and `OPENROUTER_API_KEY`. The MCP calls Kimi through OpenRouter using model `moonshotai/kimi-k2.6`; direct `KIMI_API_KEY` is not used by the deep research tool.
 
 Optional expanded-source keys:
 
