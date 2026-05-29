@@ -238,7 +238,19 @@ export async function runResearch(
     }
 
     const elapsed2 = Math.round((Date.now() - startTime) / 1000)
-    report("Step 2/6", 35, `Done (${elapsed2}s) | ${allResults.length} results → ${dedupedResults.length} after dedup`)
+    const sourceBreakdown = [
+      `tavily:${stats.tavily.results}/${stats.tavily.queries}`,
+      `brave:${stats.brave.results}/${stats.brave.queries}`,
+      `arxiv:${stats.arxiv.results}/${stats.arxiv.queries}`,
+      `pubmed:${stats.pubmed.results}/${stats.pubmed.queries}`,
+      `tushare:${stats.tushare.results}/${stats.tushare.queries}`,
+      `reddit:${stats.reddit.results}/${stats.reddit.queries}`,
+      `youtube:${stats.youtube.results}/${stats.youtube.queries}`,
+      `youtube_transcript:${stats.youtube_transcript.results}/${stats.youtube_transcript.queries}`,
+      `x:${stats.x.results}/${stats.x.queries}`,
+      `web_extract:${stats.web_extract.results}/${stats.web_extract.queries}`,
+    ].join(", ")
+    report("Step 2/6", 35, `Done (${elapsed2}s) | ${allResults.length} results → ${dedupedResults.length} after dedup | ${sourceBreakdown}`)
 
     if (dedupedResults.length === 0) {
       throw new Error("All search sources returned 0 results. Check API keys, credentials, and network.")
