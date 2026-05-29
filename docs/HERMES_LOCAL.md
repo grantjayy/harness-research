@@ -1,15 +1,25 @@
-# Local Hermes setup for modified harness-research
+# Local Hermes setup for modified deep-research MCP
 
-This fork is intended to run locally from source/build output. It does not need to be published to npm.
+This fork is intended to run locally from source/build output behind Grant's lazy-mcp server. It does not need to be published to npm.
 
-## What this fork adds
+## Purpose
 
-The MCP now owns the expanded research-source integrations directly:
+This MCP is specifically a deep research tool. It is not a generic search MCP and it should not expose standalone search/read/extract tools to Hermes.
+
+Top-level tool exposed by the MCP:
+
+- `deep_research`
+
+All source work happens internally inside that tool.
+
+## Internal source integrations
+
+The `deep_research` tool owns these source integrations internally:
 
 - Web search through Tavily and Brave
 - Academic search through arXiv and PubMed
 - Financial search through Tushare when the generated plan needs finance data
-- Reddit search and Reddit post reading
+- Reddit search
 - YouTube search and optional caption/transcript ingestion
 - X/Twitter search synthesis through xAI
 - Direct URL extraction through `web_extract`
@@ -26,21 +36,39 @@ npm test
 npm run build
 ```
 
-## Hermes MCP config
+## Lazy MCP config
 
-Add this to `~/.hermes/config.yaml` under `mcp_servers`:
+All MCP servers for Grant's Hermes setup should be configured under lazy-mcp, not directly under Hermes `mcp_servers` except for the lazy-mcp aggregator itself.
+
+Add this server entry to `/Users/grantjordan/.config/lazy-mcp/servers.json` inside the `servers` array:
+
+```json
+{
+  "name": "deep-research",
+  "description": "Local fork of harness-research exposed as one top-level deep_research tool. Internal source integrations include web, academic, Reddit, YouTube/transcripts, X/Twitter, direct URL extraction, and finance when relevant.",
+  "command": [
+    "node",
+    "/Users/grantjordan/programs/0_projects/harness-research/dist/index.js"
+  ],
+  "timeout": 1200000
+}
+```
+
+Hermes should continue to have only the lazy-mcp aggregator in `~/.hermes/config.yaml`:
 
 ```yaml
 mcp_servers:
-  harness_research:
-    command: "node"
+  lazy-mcp:
+    command: /Users/grantjordan/.local/bin/lazy-mcp
     args:
-      - "/Users/grantjordan/programs/0_projects/harness-research/dist/index.js"
-    timeout: 1200
+      - --config
+      - /Users/grantjordan/.config/lazy-mcp/servers.json
+    enabled: true
+    timeout: 180
     connect_timeout: 60
 ```
 
-Then restart Hermes/gateway when ready. Do not restart the gateway from an agent session unless Grant explicitly approves it.
+Restart Hermes/gateway only when Grant approves or does it himself.
 
 ## Credentials
 
@@ -63,34 +91,23 @@ Optional expanded-source keys:
 
 - `YOUTUBE_API_KEY` enables YouTube search. Transcript fetch uses public captions when available.
 - `XAI_API_KEY` enables X/Twitter search synthesis.
-- Reddit search/read uses Reddit public JSON endpoints and does not require OAuth.
+- Reddit search uses Reddit public JSON endpoints and does not require OAuth.
 
-## MCP tools
+## Tool contract
 
-- `harness_research` - asynchronous full research report. Returns a task ID immediately.
-- `harness_status` - poll task progress and output paths.
-- `harness_search` - quick multi-source search with source-specific query arrays.
-- `harness_read_reddit` - read one Reddit post and top comments.
-- `harness_youtube_transcript` - fetch available captions/transcript text for one YouTube URL or video ID.
-- `harness_extract_web` - extract readable text from URLs.
+`deep_research` runs the full pipeline synchronously from the MCP client's perspective:
 
-## Example calls
+1. Generate a research plan from the topic.
+2. Search enabled internal source classes.
+3. Deduplicate results.
+4. Evaluate sources with CRAAP-style source evaluation.
+5. Cross-verify findings.
+6. Write the report and render artifacts.
+7. Return output file paths, source stats, and summary.
 
-Quick multi-source search:
+Important: configure lazy-mcp / MCP client timeout high enough for full research runs, usually 1200 seconds.
 
-```json
-{
-  "query": "best MCP server research workflows",
-  "sources": ["brave", "reddit", "youtube", "x"],
-  "reddit_queries": ["MCP server research workflow reddit discussion"],
-  "youtube_queries": ["MCP server research workflow demo"],
-  "x_queries": ["Search X for practitioner examples of MCP research server workflows and caveats."],
-  "include_youtube_transcripts": true,
-  "limit": 5
-}
-```
-
-Full research:
+## Example call
 
 ```json
 {
@@ -104,5 +121,5 @@ Full research:
 ## Notes
 
 - The server degrades gracefully when an optional source key is missing. For example, no `XAI_API_KEY` means X source returns no results, while other sources still run.
-- `harness_research` is async by design. Hermes should poll `harness_status` every 30-60 seconds until the task is completed or failed.
 - Output files are written to the requested `output_dir` or the MCP process working directory.
+- Search helpers remain internal implementation details. Do not expose them as top-level MCP tools unless Grant changes the product direction.

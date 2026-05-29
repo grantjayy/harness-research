@@ -2,7 +2,7 @@
 
 # Harness Research MCP
 
-> Local fork note: Grant's Hermes-ready local setup docs are in [`docs/HERMES_LOCAL.md`](./docs/HERMES_LOCAL.md). This fork is meant to run locally from `dist/index.js`; publishing is not required.
+> Local fork note: Grant's Hermes-ready lazy-mcp setup docs are in [`docs/HERMES_LOCAL.md`](./docs/HERMES_LOCAL.md). This fork is meant to run locally from `dist/index.js` behind lazy-mcp and expose one top-level `deep_research` tool; publishing is not required.
 
 **Give any AI Agent professional-grade deep research capabilities.**
 
