@@ -180,7 +180,7 @@ export async function runResearch(
     report("Step 1/6", 5, "Generating research plan...")
 
     const planPrompt = loadPrompt("plan", { TOPIC: topic })
-    const planRaw = await callLLM(llmConfig, planPrompt, 0.4, 6000)
+    const planRaw = await callLLM(llmConfig, planPrompt, 0.4)
     const plan = safeJsonParse<ResearchPlan>(planRaw, null as any)
 
     if (!plan || !plan.sections || plan.sections.length === 0) {

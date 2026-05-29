@@ -21,7 +21,6 @@ export async function callLLM(
   config: LLMConfig,
   prompt: string,
   temperature: number = 0.3,
-  maxTokens: number = 4096,
 ): Promise<string> {
   const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`
 
@@ -41,8 +40,6 @@ export async function callLLM(
           model: config.model,
           messages: [{ role: "user", content: prompt }],
           temperature,
-          max_tokens: maxTokens,
-          reasoning: { effort: "minimal", exclude: true },
         }),
         signal: AbortSignal.timeout(LLM_TIMEOUT),
       })

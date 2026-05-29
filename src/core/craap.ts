@@ -134,7 +134,7 @@ export async function evaluateSources(
       })
 
       try {
-        const evalRaw = await callLLM(llmConfig, evalPrompt, 0.3, 3000)
+        const evalRaw = await callLLM(llmConfig, evalPrompt, 0.3)
         return { batch, results: safeJsonParse<any[]>(evalRaw, []) }
       } catch {
         return { batch, results: [] }
